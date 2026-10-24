@@ -222,6 +222,89 @@ Describe 'Apply, verify and undo' {
         $res.Renamed | Should -Be ($plan.Renames.Count - 1)
         Test-Path -LiteralPath ('\\?\' + (Join-Path $root $plan.Renames[0].Rel)) | Should -BeTrue
     }
+    It 'records the run in run.json and the time of every rename' {
+        $lib = Get-PathShrinkLibrary -Root $root -Upn $TestUpn
+        $plan = New-PathShrinkPlan -Inventory (Get-PathShrinkInventory -Library $lib) -Limit 260 -Margin 0
+        $res = Invoke-PathShrinkPlan -Plan $plan -ReportFolder "$root-reports\run" -Confirm:$false
+        $run = Get-Content "$root-reports\run\run.json" -Raw | ConvertFrom-Json
+        $run.renamed | Should -Be $res.Renamed
+        $run.finished | Should -Not -BeNullOrEmpty
+        @(Import-Csv $res.UndoFile | Where-Object { -not $_.Time }).Count | Should -Be 0
+    }
+    It 'checks before reverting: everything is ready right after the run' {
+        $lib = Get-PathShrinkLibrary -Root $root -Upn $TestUpn
+        $plan = New-PathShrinkPlan -Inventory (Get-PathShrinkInventory -Library $lib) -Limit 260 -Margin 0
+        $res = Invoke-PathShrinkPlan -Plan $plan -ReportFolder "$root-reports\run" -Confirm:$false
+        $c = Test-PathShrinkUndo -UndoFile $res.UndoFile
+        $c.Total | Should -Be $res.Renamed
+        $c.Ready | Should -Be $res.Renamed
+        $c.Blocked | Should -Be 0
+        Get-TestRels $root | Should -Not -Be $original   # the check changes nothing
+    }
+    It 'skips an item whose old name is taken again, and does not overwrite it' {
+        $lib = Get-PathShrinkLibrary -Root $root -Upn $TestUpn
+        $plan = New-PathShrinkPlan -Inventory (Get-PathShrinkInventory -Library $lib) -Limit 260 -Margin 0
+        $res = Invoke-PathShrinkPlan -Plan $plan -ReportFolder "$root-reports\run" -Confirm:$false
+        $deep = (Test-PathShrinkUndo -UndoFile $res.UndoFile).Items | Where-Object Type -eq 'Folder' | Sort-Object { $_.OriginalPath.Length } -Descending | Select-Object -First 1
+        $squatter = Join-Path (Split-Path $deep.CurrentPath -Parent) $deep.OriginalName
+        [void][IO.Directory]::CreateDirectory('\\?\' + $squatter)
+        [IO.File]::WriteAllText('\\?\' + (Join-Path $squatter 'new by user.txt'), 'keep me')
+        $c = Test-PathShrinkUndo -UndoFile $res.UndoFile
+        ($c.Items | Where-Object OriginalPath -eq $deep.OriginalPath).Status | Should -Be 'Conflict'
+        $c.Blocked | Should -Be 1
+        $u = Undo-PathShrink -UndoFile $res.UndoFile -Confirm:$false
+        $u.Skipped | Should -Be 1
+        $u.Restored | Should -Be ($res.Renamed - 1)
+        $u.Failed | Should -Be 0
+        # The parents got their names back, so both folders now sit under the original parent.
+        $parent = Split-Path $deep.OriginalPath -Parent
+        [IO.File]::ReadAllText('\\?\' + (Join-Path $parent ($deep.OriginalName + '\new by user.txt'))) | Should -Be 'keep me'
+        Test-Path -LiteralPath ('\\?\' + (Join-Path $parent $deep.NewName)) | Should -BeTrue
+        Test-Path (Join-Path "$root-reports\run" 'restore.csv') | Should -BeTrue
+    }
+    It 'skips a folder renamed again by the user, and everything inside it' {
+        $lib = Get-PathShrinkLibrary -Root $root -Upn $TestUpn
+        $plan = New-PathShrinkPlan -Inventory (Get-PathShrinkInventory -Library $lib) -Limit 260 -Margin 0
+        $res = Invoke-PathShrinkPlan -Plan $plan -ReportFolder "$root-reports\run" -Confirm:$false
+        $items = (Test-PathShrinkUndo -UndoFile $res.UndoFile).Items
+        $top = $items | Where-Object { $o = $_.OriginalPath; $_.Type -eq 'Folder' -and @($items | Where-Object { $_.OriginalPath.StartsWith($o + '\') }).Count } | Sort-Object { $_.OriginalPath.Length } | Select-Object -First 1
+        $inside = @($items | Where-Object { $_.OriginalPath.StartsWith($top.OriginalPath + '\') }).Count
+        [IO.Directory]::Move('\\?\' + $top.CurrentPath, '\\?\' + (Join-Path (Split-Path $top.CurrentPath -Parent) 'Renamed by user'))
+        $c = Test-PathShrinkUndo -UndoFile $res.UndoFile
+        ($c.Items | Where-Object OriginalPath -eq $top.OriginalPath).Status | Should -Be 'Missing'
+        @($c.Items | Where-Object Status -eq 'ParentMissing').Count | Should -Be $inside
+        $u = Undo-PathShrink -UndoFile $res.UndoFile -Confirm:$false
+        $u.Skipped | Should -Be (1 + $inside)
+        $u.Failed | Should -Be 0
+        Test-Path -LiteralPath ('\\?\' + (Join-Path (Split-Path $top.CurrentPath -Parent) 'Renamed by user')) | Should -BeTrue
+    }
+    It 'reverting twice changes nothing the second time' {
+        $lib = Get-PathShrinkLibrary -Root $root -Upn $TestUpn
+        $plan = New-PathShrinkPlan -Inventory (Get-PathShrinkInventory -Library $lib) -Limit 260 -Margin 0
+        $res = Invoke-PathShrinkPlan -Plan $plan -ReportFolder "$root-reports\run" -Confirm:$false
+        [void](Undo-PathShrink -UndoFile $res.UndoFile -Confirm:$false)
+        $c = Test-PathShrinkUndo -UndoFile $res.UndoFile
+        $c.Restored | Should -Be $res.Renamed
+        $c.Ready | Should -Be 0
+        $u = Undo-PathShrink -UndoFile $res.UndoFile -Confirm:$false
+        $u.Restored | Should -Be 0
+        $u.AlreadyRestored | Should -Be $res.Renamed
+        Get-TestRels $root | Should -Be $original
+    }
+    It 'lists runs in the history and marks the reverted ones' {
+        $lib = Get-PathShrinkLibrary -Root $root -Upn $TestUpn
+        $plan = New-PathShrinkPlan -Inventory (Get-PathShrinkInventory -Library $lib) -Limit 260 -Margin 0
+        $res = Invoke-PathShrinkPlan -Plan $plan -ReportFolder "$root-reports\run" -Confirm:$false
+        $h = @(Get-PathShrinkHistory -Folder "$root-reports")
+        $h.Count | Should -Be 1
+        $h[0].Renamed | Should -Be $res.Renamed
+        $h[0].Folder | Should -Be $root
+        $h[0].RestoredAt | Should -BeNullOrEmpty
+        [void](Undo-PathShrink -UndoFile $res.UndoFile -Confirm:$false)
+        $h = @(Get-PathShrinkHistory -Folder "$root-reports")
+        $h[0].RestoredCount | Should -Be $res.Renamed
+        $h[0].RestoredAt | Should -Not -BeNullOrEmpty
+    }
     It 'records a failed rename and carries on' {
         $lib = Get-PathShrinkLibrary -Root $root -Upn $TestUpn
         $plan = New-PathShrinkPlan -Inventory (Get-PathShrinkInventory -Library $lib) -Limit 260 -Margin 0

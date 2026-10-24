@@ -1,19 +1,21 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="PathShrink" Width="1100" Height="740" MinWidth="880" MinHeight="600"
-        WindowStartupLocation="CenterScreen" Background="#161618" Foreground="#E6E6E8"
-        FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True" SnapsToDevicePixels="True"
+        Title="PathShrink" Width="1240" Height="820" MinWidth="980" MinHeight="660"
+        WindowStartupLocation="CenterScreen" Background="#141416" Foreground="#ECECEE"
+        FontFamily="Segoe UI" FontSize="14" UseLayoutRounding="True" SnapsToDevicePixels="True"
         TextOptions.TextFormattingMode="Display" AllowDrop="True">
   <WindowChrome.WindowChrome>
-    <WindowChrome CaptionHeight="52" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
+    <WindowChrome CaptionHeight="56" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
   </WindowChrome.WindowChrome>
   <Window.Resources>
-    <SolidColorBrush x:Key="Bg" Color="#161618"/>
-    <SolidColorBrush x:Key="Surface" Color="#1D1D20"/>
-    <SolidColorBrush x:Key="Surface2" Color="#242428"/>
-    <SolidColorBrush x:Key="Line" Color="#33333A"/>
-    <SolidColorBrush x:Key="Text" Color="#E6E6E8"/>
-    <SolidColorBrush x:Key="Text2" Color="#B8B8BC"/>
+    <SolidColorBrush x:Key="Bg" Color="#141416"/>
+    <SolidColorBrush x:Key="Chrome" Color="#101012"/>
+    <SolidColorBrush x:Key="Surface" Color="#1C1C1F"/>
+    <SolidColorBrush x:Key="Surface2" Color="#232327"/>
+    <SolidColorBrush x:Key="Line" Color="#303036"/>
+    <SolidColorBrush x:Key="Text" Color="#ECECEE"/>
+    <SolidColorBrush x:Key="Text2" Color="#B4B4BA"/>
+    <SolidColorBrush x:Key="Text3" Color="#8C8C94"/>
     <SolidColorBrush x:Key="Gold" Color="#C9A96E"/>
     <SolidColorBrush x:Key="GoldHi" Color="#E2C48A"/>
     <SolidColorBrush x:Key="GoldLo" Color="#7A6440"/>
@@ -21,25 +23,77 @@
     <SolidColorBrush x:Key="Warn" Color="#E0C060"/>
     <SolidColorBrush x:Key="Bad" Color="#FF7B72"/>
 
-    <DrawingImage x:Key="LogoImage">
-      <DrawingImage.Drawing>
-        <DrawingGroup>
-          <GeometryDrawing Brush="#161618" Geometry="M0,0 H32 V32 H0 Z"/>
-          <GeometryDrawing Geometry="M3,9 L10,16 L3,23 M29,9 L22,16 L29,23 M15,6 V26 M17,6 V26">
-            <GeometryDrawing.Pen><Pen Brush="#C9A96E" Thickness="2.6" StartLineCap="Square" EndLineCap="Square" LineJoin="Miter"/></GeometryDrawing.Pen>
-          </GeometryDrawing>
-        </DrawingGroup>
-      </DrawingImage.Drawing>
-    </DrawingImage>
+    <!-- Text scale: 28 view titles, 19 section titles, 15 lead, 14 body, 13 secondary, 12 captions. -->
+    <Style x:Key="H1" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="Segoe UI Semilight"/>
+      <Setter Property="FontSize" Value="28"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+      <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+    </Style>
+    <Style x:Key="H2" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="Segoe UI Semibold"/>
+      <Setter Property="FontSize" Value="19"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+      <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+    </Style>
+    <Style x:Key="Lead" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource Text2}"/>
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="LineHeight" Value="23"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="Hint" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource Text2}"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="LineHeight" Value="19"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="Caption" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource Gold}"/>
+      <Setter Property="FontFamily" Value="Segoe UI Semibold"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Margin" Value="0,0,0,6"/>
+    </Style>
+    <Style x:Key="Label" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="Segoe UI Semibold"/>
+      <Setter Property="FontSize" Value="13.5"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style x:Key="Mono" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="Consolas"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="LineHeight" Value="19"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="TileValue" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="Segoe UI Semilight"/>
+      <Setter Property="FontSize" Value="32"/>
+      <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+    </Style>
+    <Style x:Key="Icon" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style x:Key="Card" TargetType="Border">
+      <Setter Property="Background" Value="{StaticResource Surface}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style x:Key="Chip" TargetType="Border">
+      <Setter Property="Background" Value="#262218"/>
+      <Setter Property="BorderBrush" Value="{StaticResource GoldLo}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="10,3"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
 
-    <!-- Cut-corner button. The shape geometry is set from code on SizeChanged so the
-         corners keep the same angle at any width. -->
+    <!-- Cut-corner button. The shape is set from code on SizeChanged so the corners keep the same angle at any width. -->
     <Style x:Key="CutButton" TargetType="Button">
       <Setter Property="Foreground" Value="{StaticResource Gold}"/>
       <Setter Property="FontFamily" Value="Segoe UI Semibold"/>
-      <Setter Property="FontSize" Value="13"/>
-      <Setter Property="Height" Value="38"/>
-      <Setter Property="MinWidth" Value="110"/>
+      <Setter Property="FontSize" Value="14"/>
+      <Setter Property="Height" Value="42"/>
+      <Setter Property="MinWidth" Value="120"/>
       <Setter Property="Padding" Value="22,0"/>
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -48,19 +102,19 @@
         <Setter.Value>
           <ControlTemplate TargetType="Button">
             <Grid x:Name="Root" Background="Transparent">
-              <Path x:Name="Shape" Stroke="{StaticResource Gold}" StrokeThickness="2" Fill="Transparent" Stretch="None"/>
+              <Path x:Name="Shape" Stroke="{StaticResource Gold}" StrokeThickness="1.5" Fill="Transparent" Stretch="None"/>
               <Path x:Name="Focus" Stroke="{StaticResource GoldHi}" StrokeThickness="1" StrokeDashArray="2 2" Fill="Transparent" Stretch="None" Visibility="Collapsed" Margin="4"/>
-              <ContentPresenter RecognizesAccessKey="True" x:Name="Content" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
+              <ContentPresenter RecognizesAccessKey="True" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
             </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Shape" Property="Fill" Value="{StaticResource Gold}"/>
-                <Setter Property="Foreground" Value="#161618"/>
+                <Setter TargetName="Shape" Property="Fill" Value="#2A2518"/>
+                <Setter TargetName="Shape" Property="Stroke" Value="{StaticResource GoldHi}"/>
+                <Setter Property="Foreground" Value="{StaticResource GoldHi}"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
                 <Setter TargetName="Shape" Property="Fill" Value="{StaticResource GoldLo}"/>
-                <Setter TargetName="Shape" Property="Stroke" Value="{StaticResource GoldLo}"/>
-                <Setter Property="Foreground" Value="#F0F0F0"/>
+                <Setter Property="Foreground" Value="#F4F4F4"/>
               </Trigger>
               <Trigger Property="IsKeyboardFocused" Value="True">
                 <Setter TargetName="Shape" Property="Stroke" Value="{StaticResource GoldHi}"/>
@@ -75,13 +129,13 @@
       </Setter>
     </Style>
     <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource CutButton}">
-      <Setter Property="Foreground" Value="#161618"/>
+      <Setter Property="Foreground" Value="#141416"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
             <Grid x:Name="Root" Background="Transparent">
-              <Path x:Name="Shape" Stroke="{StaticResource Gold}" StrokeThickness="2" Fill="{StaticResource Gold}" Stretch="None"/>
-              <Path x:Name="Focus" Stroke="#161618" StrokeThickness="1" StrokeDashArray="2 2" Fill="Transparent" Stretch="None" Visibility="Collapsed" Margin="4"/>
+              <Path x:Name="Shape" Stroke="{StaticResource Gold}" StrokeThickness="1.5" Fill="{StaticResource Gold}" Stretch="None"/>
+              <Path x:Name="Focus" Stroke="#141416" StrokeThickness="1" StrokeDashArray="2 2" Fill="Transparent" Stretch="None" Visibility="Collapsed" Margin="4"/>
               <ContentPresenter RecognizesAccessKey="True" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
             </Grid>
             <ControlTemplate.Triggers>
@@ -105,17 +159,40 @@
     </Style>
     <Style x:Key="LinkButton" TargetType="Button">
       <Setter Property="Foreground" Value="{StaticResource Gold}"/>
+      <Setter Property="FontSize" Value="14"/>
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="B" Background="Transparent" Padding="2,2" BorderThickness="0,0,0,1" BorderBrush="Transparent">
+            <Border x:Name="B" Background="Transparent" Padding="2,4" BorderThickness="0,0,0,1" BorderBrush="Transparent">
               <ContentPresenter RecognizesAccessKey="True"/>
             </Border>
             <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{StaticResource Gold}"/></Trigger>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{StaticResource Gold}"/><Setter Property="Foreground" Value="{StaticResource GoldHi}"/></Trigger>
               <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{StaticResource GoldHi}"/></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="TitleButton" TargetType="Button">
+      <Setter Property="Foreground" Value="{StaticResource Text2}"/>
+      <Setter Property="FontSize" Value="13.5"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+      <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="B" Background="Transparent" Padding="10,7">
+              <ContentPresenter RecognizesAccessKey="True" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#24242A"/><Setter Property="Foreground" Value="{StaticResource GoldHi}"/></Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="Background" Value="#24242A"/></Trigger>
               <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -124,7 +201,7 @@
     </Style>
     <Style x:Key="CaptionButton" TargetType="Button">
       <Setter Property="Width" Value="46"/>
-      <Setter Property="Height" Value="34"/>
+      <Setter Property="Height" Value="36"/>
       <Setter Property="Foreground" Value="{StaticResource Text2}"/>
       <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
       <Setter Property="FontSize" Value="10"/>
@@ -133,9 +210,32 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="B" Background="Transparent"><ContentPresenter RecognizesAccessKey="True" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+            <Border x:Name="B" Background="Transparent"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#2C2C31"/><Setter Property="Foreground" Value="#FFFFFF"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <!-- Small "?" next to a term: opens a short explanation of that term. -->
+    <Style x:Key="HelpDot" TargetType="Button">
+      <Setter Property="Width" Value="20"/>
+      <Setter Property="Height" Value="20"/>
+      <Setter Property="Margin" Value="6,0,0,0"/>
+      <Setter Property="Foreground" Value="{StaticResource Text3}"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="B" CornerRadius="10" BorderThickness="1.2" BorderBrush="{TemplateBinding Foreground}" Background="Transparent">
+              <TextBlock Text="?" FontFamily="Segoe UI Semibold" FontSize="11.5" Foreground="{TemplateBinding Foreground}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource GoldHi}"/></Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="Foreground" Value="{StaticResource GoldHi}"/><Setter TargetName="B" Property="Background" Value="#2A2518"/></Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
@@ -144,64 +244,88 @@
     <Style x:Key="ModeToggle" TargetType="RadioButton">
       <Setter Property="Foreground" Value="{StaticResource Text2}"/>
       <Setter Property="FontFamily" Value="Segoe UI Semibold"/>
-      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="FontSize" Value="13.5"/>
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
       <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="RadioButton">
-            <Border x:Name="B" Background="Transparent" Padding="14,5" BorderThickness="0,0,0,2" BorderBrush="Transparent">
+            <Border x:Name="B" Background="Transparent" Padding="14,7" BorderThickness="0,0,0,2" BorderBrush="Transparent">
               <ContentPresenter RecognizesAccessKey="True"/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsChecked" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{StaticResource Gold}"/><Setter Property="Foreground" Value="{StaticResource Gold}"/></Trigger>
               <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource GoldHi}"/></Trigger>
               <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="Background" Value="#26262B"/></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
       </Setter>
     </Style>
     <Style x:Key="LangToggle" TargetType="RadioButton" BasedOn="{StaticResource ModeToggle}">
-      <Setter Property="FontSize" Value="11"/>
-      <Setter Property="Padding" Value="0"/>
+      <Setter Property="FontSize" Value="12.5"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="RadioButton">
-            <Border x:Name="B" Background="Transparent" Padding="7,5" BorderThickness="0,0,0,2" BorderBrush="Transparent">
+            <Border x:Name="B" Background="Transparent" Padding="8,7" BorderThickness="0,0,0,2" BorderBrush="Transparent">
               <ContentPresenter/>
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsChecked" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{StaticResource GoldLo}"/><Setter Property="Foreground" Value="{StaticResource Gold}"/></Trigger>
               <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource GoldHi}"/></Trigger>
               <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="Background" Value="#26262B"/></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
       </Setter>
     </Style>
     <Style x:Key="TabHeader" TargetType="RadioButton" BasedOn="{StaticResource ModeToggle}">
-      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="FontSize" Value="14"/>
       <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="False"/>
     </Style>
+    <Style x:Key="FilterToggle" TargetType="RadioButton" BasedOn="{StaticResource ModeToggle}">
+      <Setter Property="FontFamily" Value="Segoe UI"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="False"/>
+      <Setter Property="Margin" Value="0,0,6,0"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Border x:Name="B" Background="Transparent" Padding="12,6" BorderThickness="1" BorderBrush="{StaticResource Line}">
+              <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{StaticResource Gold}"/><Setter TargetName="B" Property="Background" Value="#262218"/><Setter Property="Foreground" Value="{StaticResource GoldHi}"/></Trigger>
+              <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource GoldHi}"/></Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{StaticResource GoldHi}"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
     <Style x:Key="Field" TargetType="TextBox">
-      <Setter Property="Background" Value="#1A1A1D"/>
+      <Setter Property="Background" Value="#18181B"/>
       <Setter Property="Foreground" Value="{StaticResource Text}"/>
       <Setter Property="CaretBrush" Value="{StaticResource Gold}"/>
       <Setter Property="SelectionBrush" Value="{StaticResource GoldLo}"/>
       <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
-      <Setter Property="BorderThickness" Value="0,0,0,1"/>
-      <Setter Property="Padding" Value="4,5"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="FontSize" Value="14"/>
+      <Setter Property="Padding" Value="8,7"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="TextBox">
             <Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
-              <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"/>
+              <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
             </Border>
             <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="#4A4A52"/></Trigger>
               <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{StaticResource Gold}"/></Trigger>
-              <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
@@ -216,10 +340,10 @@
           <ControlTemplate TargetType="CheckBox">
             <Grid Background="Transparent">
               <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-              <Border x:Name="Box" Width="16" Height="16" BorderBrush="{StaticResource Text2}" BorderThickness="1.5" Background="Transparent" VerticalAlignment="Top" Margin="0,1,0,0">
-                <Path x:Name="Mark" Data="M2.5,7.5 L6,11 L13,3.5" Stroke="#161618" StrokeThickness="2" Visibility="Collapsed"/>
+              <Border x:Name="Box" Width="18" Height="18" BorderBrush="{StaticResource Text2}" BorderThickness="1.5" Background="Transparent" VerticalAlignment="Top" Margin="0,1,0,0">
+                <Path x:Name="Mark" Data="M3,8.5 L7,12.5 L14.5,4" Stroke="#141416" StrokeThickness="2" Visibility="Collapsed"/>
               </Border>
-              <ContentPresenter RecognizesAccessKey="True" Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"/>
+              <ContentPresenter RecognizesAccessKey="True" Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center"/>
             </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsChecked" Value="True">
@@ -229,14 +353,48 @@
               </Trigger>
               <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource GoldHi}"/></Trigger>
               <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource GoldHi}"/><Setter TargetName="Box" Property="BorderThickness" Value="2"/></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="Exp" TargetType="Expander">
+      <Setter Property="Foreground" Value="{StaticResource Gold}"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Expander">
+            <StackPanel>
+              <ToggleButton IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" Content="{TemplateBinding Header}"
+                            Foreground="{TemplateBinding Foreground}" Cursor="Hand" FocusVisualStyle="{x:Null}" HorizontalAlignment="Left">
+                <ToggleButton.Template>
+                  <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="B" Background="Transparent" Padding="0,5" BorderThickness="0,0,0,1" BorderBrush="Transparent">
+                      <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="Arrow" Text="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="10" VerticalAlignment="Center" Margin="0,1,8,0" RenderTransformOrigin="0.5,0.5"/>
+                        <ContentPresenter VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsChecked" Value="True"><Setter TargetName="Arrow" Property="RenderTransform"><Setter.Value><RotateTransform Angle="90"/></Setter.Value></Setter></Trigger>
+                      <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource GoldHi}"/></Trigger>
+                      <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{StaticResource GoldHi}"/></Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </ToggleButton.Template>
+              </ToggleButton>
+              <ContentPresenter x:Name="Body" Visibility="Collapsed" Margin="0,6,0,0"/>
+            </StackPanel>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsExpanded" Value="True"><Setter TargetName="Body" Property="Visibility" Value="Visible"/></Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
       </Setter>
     </Style>
     <Style TargetType="ScrollBar">
-      <Setter Property="Width" Value="10"/>
-      <Setter Property="MinWidth" Value="10"/>
+      <Setter Property="Width" Value="12"/>
+      <Setter Property="MinWidth" Value="12"/>
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="Template">
         <Setter.Value>
@@ -245,7 +403,7 @@
               <Track.Thumb>
                 <Thumb>
                   <Thumb.Template>
-                    <ControlTemplate TargetType="Thumb"><Border Background="#3A3A41" Margin="2"/></ControlTemplate>
+                    <ControlTemplate TargetType="Thumb"><Border Background="#3E3E46" Margin="3"/></ControlTemplate>
                   </Thumb.Template>
                 </Thumb>
               </Track.Thumb>
@@ -255,8 +413,8 @@
       </Setter>
       <Style.Triggers>
         <Trigger Property="Orientation" Value="Horizontal">
-          <Setter Property="Height" Value="10"/>
-          <Setter Property="MinHeight" Value="10"/>
+          <Setter Property="Height" Value="12"/>
+          <Setter Property="MinHeight" Value="12"/>
           <Setter Property="Width" Value="Auto"/>
           <Setter Property="Template">
             <Setter.Value>
@@ -265,7 +423,7 @@
                   <Track.Thumb>
                     <Thumb>
                       <Thumb.Template>
-                        <ControlTemplate TargetType="Thumb"><Border Background="#3A3A41" Margin="2"/></ControlTemplate>
+                        <ControlTemplate TargetType="Thumb"><Border Background="#3E3E46" Margin="3"/></ControlTemplate>
                       </Thumb.Template>
                     </Thumb>
                   </Track.Thumb>
@@ -281,15 +439,16 @@
       <Setter Property="Foreground" Value="{StaticResource Text}"/>
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="RowBackground" Value="Transparent"/>
-      <Setter Property="AlternatingRowBackground" Value="#1A1A1D"/>
+      <Setter Property="AlternatingRowBackground" Value="#19191C"/>
       <Setter Property="GridLinesVisibility" Value="None"/>
       <Setter Property="HeadersVisibility" Value="Column"/>
       <Setter Property="AutoGenerateColumns" Value="False"/>
       <Setter Property="CanUserAddRows" Value="False"/>
       <Setter Property="CanUserDeleteRows" Value="False"/>
       <Setter Property="CanUserResizeRows" Value="False"/>
+      <Setter Property="IsReadOnly" Value="True"/>
       <Setter Property="SelectionMode" Value="Single"/>
-      <Setter Property="RowHeight" Value="30"/>
+      <Setter Property="MinRowHeight" Value="34"/>
       <Setter Property="EnableRowVirtualization" Value="True"/>
       <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
       <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling"/>
@@ -299,8 +458,8 @@
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource Gold}"/>
             <Setter Property="FontFamily" Value="Segoe UI Semibold"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="12,8"/>
             <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
           </Style>
@@ -310,13 +469,13 @@
         <Setter.Value>
           <Style TargetType="DataGridCell">
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="Padding" Value="12,6"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
               <Setter.Value>
                 <ControlTemplate TargetType="DataGridCell">
                   <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
-                    <ContentPresenter RecognizesAccessKey="True" VerticalAlignment="Center"/>
+                    <ContentPresenter VerticalAlignment="Center"/>
                   </Border>
                 </ControlTemplate>
               </Setter.Value>
@@ -331,49 +490,84 @@
         </Setter.Value>
       </Setter>
     </Style>
-    <Style x:Key="Mono" TargetType="TextBlock">
-      <Setter Property="FontFamily" Value="Consolas"/>
-      <Setter Property="FontSize" Value="12.5"/>
-      <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    <Style x:Key="PlainList" TargetType="ListBox">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Foreground" Value="{StaticResource Text}"/>
+      <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+      <Setter Property="ScrollViewer.CanContentScroll" Value="True"/>
+      <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
+      <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Standard"/>
+      <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel"/>
+      <Setter Property="ItemContainerStyle">
+        <Setter.Value>
+          <Style TargetType="ListBoxItem">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+              <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem"><ContentPresenter/></ControlTemplate>
+              </Setter.Value>
+            </Setter>
+          </Style>
+        </Setter.Value>
+      </Setter>
     </Style>
-    <Style x:Key="SectionTitle" TargetType="TextBlock">
-      <Setter Property="Foreground" Value="{StaticResource Gold}"/>
-      <Setter Property="FontFamily" Value="Segoe UI Semibold"/>
-      <Setter Property="FontSize" Value="11.5"/>
-      <Setter Property="Margin" Value="0,0,0,8"/>
-    </Style>
-    <Style x:Key="Hint" TargetType="TextBlock">
-      <Setter Property="Foreground" Value="{StaticResource Text2}"/>
-      <Setter Property="FontSize" Value="12"/>
-      <Setter Property="TextWrapping" Value="Wrap"/>
-    </Style>
-    <Style x:Key="TileValue" TargetType="TextBlock">
-      <Setter Property="FontFamily" Value="Segoe UI Light"/>
-      <Setter Property="FontSize" Value="30"/>
+    <Style x:Key="PickList" TargetType="ListBox" BasedOn="{StaticResource PlainList}">
+      <Setter Property="ItemContainerStyle">
+        <Setter.Value>
+          <Style TargetType="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+              <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                  <Border x:Name="B" Background="Transparent" BorderThickness="3,0,0,1" BorderBrush="Transparent">
+                    <Border BorderThickness="0,0,0,1" BorderBrush="{StaticResource Line}"><ContentPresenter/></Border>
+                  </Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#202024"/></Trigger>
+                    <Trigger Property="IsSelected" Value="True"><Setter TargetName="B" Property="Background" Value="#262218"/><Setter TargetName="B" Property="BorderBrush" Value="{StaticResource Gold}"/></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="Background" Value="#24242A"/></Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </Setter.Value>
+            </Setter>
+          </Style>
+        </Setter.Value>
+      </Setter>
     </Style>
   </Window.Resources>
 
-  <Border BorderBrush="#2A2A2F" BorderThickness="1" Background="#161618">
+  <Border BorderBrush="#2A2A2F" BorderThickness="1" Background="#141416">
   <Grid x:Name="RootGrid">
     <Grid.RowDefinitions>
-      <RowDefinition Height="52"/>
+      <RowDefinition Height="56"/>
       <RowDefinition Height="*"/>
-      <RowDefinition Height="30"/>
+      <RowDefinition Height="32"/>
     </Grid.RowDefinitions>
 
     <!-- Title bar -->
-    <Grid Grid.Row="0" Background="#121214">
+    <Grid Grid.Row="0" Background="{StaticResource Chrome}">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="18,0,0,0">
-        <Image Source="{StaticResource LogoImage}" Width="22" Height="22"/>
-        <TextBlock Text="PathShrink" FontFamily="Segoe UI Light" FontSize="19" Margin="10,0,0,2" VerticalAlignment="Center"/>
-        <TextBlock x:Name="VersionText" Text="1.0.0" Foreground="{StaticResource Text2}" FontSize="11" Margin="8,4,0,0" VerticalAlignment="Center"/>
+        <Image x:Name="TitleLogo" Width="30" Height="30" RenderOptions.BitmapScalingMode="HighQuality"/>
+        <TextBlock Text="PathShrink" FontFamily="Segoe UI Semilight" FontSize="20" Margin="10,0,0,2" VerticalAlignment="Center" TextOptions.TextFormattingMode="Ideal"/>
+        <TextBlock x:Name="VersionText" Text="1.0.0" Foreground="{StaticResource Text3}" FontSize="12" Margin="8,5,0,0" VerticalAlignment="Center"/>
       </StackPanel>
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,10,18,0">
-          <RadioButton x:Name="LangEN" Style="{StaticResource LangToggle}" GroupName="Lang" Content="EN" ToolTip="English"/>
-          <RadioButton x:Name="LangES" Style="{StaticResource LangToggle}" GroupName="Lang" Content="ES" ToolTip="Espa&#241;ol"/>
-          <RadioButton x:Name="LangPT" Style="{StaticResource LangToggle}" GroupName="Lang" Content="PT" ToolTip="Portugu&#234;s"/>
-          <Border Width="1" Background="#33333A" Margin="12,4,12,4"/>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,10,14,0">
+          <Button x:Name="BtnHistory" Style="{StaticResource TitleButton}" ToolTip="{{nav.history.tip}}" AutomationProperties.Name="{{nav.history.name}}">
+            <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE81C;" FontSize="15" Margin="0,0,8,0"/><TextBlock Text="{{nav.history}}"/></StackPanel>
+          </Button>
+          <Button x:Name="BtnHelp" Style="{StaticResource TitleButton}" ToolTip="{{nav.help.tip}}" AutomationProperties.Name="{{nav.help.name}}">
+            <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE897;" FontSize="15" Margin="0,0,8,0"/><TextBlock Text="{{nav.help}}"/></StackPanel>
+          </Button>
+          <Border Width="1" Background="{StaticResource Line}" Margin="10,6,8,6"/>
+          <RadioButton x:Name="LangEN" Style="{StaticResource LangToggle}" GroupName="Lang" Content="EN" ToolTip="English" AutomationProperties.Name="English"/>
+          <RadioButton x:Name="LangES" Style="{StaticResource LangToggle}" GroupName="Lang" Content="ES" ToolTip="Espa&#241;ol" AutomationProperties.Name="Espa&#241;ol"/>
+          <RadioButton x:Name="LangPT" Style="{StaticResource LangToggle}" GroupName="Lang" Content="PT" ToolTip="Portugu&#234;s" AutomationProperties.Name="Portugu&#234;s"/>
+          <Border Width="1" Background="{StaticResource Line}" Margin="8,6,8,6"/>
           <RadioButton x:Name="ModeBasic" Style="{StaticResource ModeToggle}" GroupName="Mode" IsChecked="True" Content="{{mode.basic}}" ToolTip="{{mode.basic.tip}}" AutomationProperties.Name="{{mode.basic.name}}"/>
           <RadioButton x:Name="ModePro" Style="{StaticResource ModeToggle}" GroupName="Mode" Content="{{mode.pro}}" ToolTip="{{mode.pro.tip}}" AutomationProperties.Name="{{mode.pro.name}}"/>
         </StackPanel>
@@ -383,73 +577,226 @@
       </StackPanel>
     </Grid>
 
-    <!-- Body -->
-    <Grid Grid.Row="1">
+    <!-- Body: centred, with a reading width that grows only up to a point -->
+    <Grid Grid.Row="1" x:Name="BodyHost" Margin="32,22,32,18" MaxWidth="1180">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*"/>
         <ColumnDefinition x:Name="SideColumn" Width="0"/>
       </Grid.ColumnDefinitions>
 
-      <Grid Grid.Column="0" Margin="28,18,28,16">
+      <Grid Grid.Column="0">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Steps -->
-        <StackPanel x:Name="Steps" Orientation="Horizontal" Margin="0,0,0,14">
-          <TextBlock x:Name="Step1" Text="{{step.1}}" Margin="0,0,22,0"/>
-          <TextBlock x:Name="Step2" Text="{{step.2}}" Margin="0,0,22,0"/>
-          <TextBlock x:Name="Step3" Text="{{step.3}}" Margin="0,0,22,0"/>
-          <TextBlock x:Name="Step4" Text="{{step.4}}" Margin="0,0,22,0"/>
-          <TextBlock x:Name="Step5" Text="{{step.5}}"/>
+        <!-- Steps: which phases only read and which one changes names -->
+        <StackPanel x:Name="Steps" Orientation="Horizontal" Margin="0,0,0,18">
+          <StackPanel Orientation="Horizontal">
+            <Border x:Name="Step1Dot" Width="28" Height="28" CornerRadius="14" BorderThickness="1.5"><TextBlock x:Name="Step1Num" Text="1" FontFamily="Segoe UI Semibold" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center"><TextBlock x:Name="Step1" Text="{{step.1}}" FontSize="14"/><TextBlock x:Name="Step1Sub" Text="{{step.1.sub}}" FontSize="12" Foreground="{StaticResource Text3}"/></StackPanel>
+          </StackPanel>
+          <Border Width="34" Height="1" Background="{StaticResource Line}" Margin="16,0" VerticalAlignment="Center"/>
+          <StackPanel Orientation="Horizontal">
+            <Border x:Name="Step2Dot" Width="28" Height="28" CornerRadius="14" BorderThickness="1.5"><TextBlock x:Name="Step2Num" Text="2" FontFamily="Segoe UI Semibold" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center"><TextBlock x:Name="Step2" Text="{{step.2}}" FontSize="14"/><TextBlock x:Name="Step2Sub" Text="{{step.2.sub}}" FontSize="12" Foreground="{StaticResource Text3}"/></StackPanel>
+          </StackPanel>
+          <Border Width="34" Height="1" Background="{StaticResource Line}" Margin="16,0" VerticalAlignment="Center"/>
+          <StackPanel Orientation="Horizontal">
+            <Border x:Name="Step3Dot" Width="28" Height="28" CornerRadius="14" BorderThickness="1.5"><TextBlock x:Name="Step3Num" Text="3" FontFamily="Segoe UI Semibold" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center"><TextBlock x:Name="Step3" Text="{{step.3}}" FontSize="14"/><TextBlock x:Name="Step3Sub" Text="{{step.3.sub}}" FontSize="12" Foreground="{StaticResource Text3}"/></StackPanel>
+          </StackPanel>
+          <Border Width="34" Height="1" Background="{StaticResource Line}" Margin="16,0" VerticalAlignment="Center"/>
+          <StackPanel Orientation="Horizontal">
+            <Border x:Name="Step4Dot" Width="28" Height="28" CornerRadius="14" BorderThickness="1.5"><TextBlock x:Name="Step4Num" Text="4" FontFamily="Segoe UI Semibold" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center"><TextBlock x:Name="Step4" Text="{{step.4}}" FontSize="14"/><TextBlock x:Name="Step4Sub" Text="{{step.4.sub}}" FontSize="12" Foreground="{StaticResource Text3}"/></StackPanel>
+          </StackPanel>
+          <Border Width="34" Height="1" Background="{StaticResource Line}" Margin="16,0" VerticalAlignment="Center"/>
+          <StackPanel Orientation="Horizontal">
+            <Border x:Name="Step5Dot" Width="28" Height="28" CornerRadius="14" BorderThickness="1.5"><TextBlock x:Name="Step5Num" Text="5" FontFamily="Segoe UI Semibold" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center"><TextBlock x:Name="Step5" Text="{{step.5}}" FontSize="14"/><TextBlock x:Name="Step5Sub" Text="{{step.5.sub}}" FontSize="12" Foreground="{StaticResource Text3}"/></StackPanel>
+          </StackPanel>
         </StackPanel>
 
-        <!-- Folder card -->
-        <Border Grid.Row="1" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="18,14" Margin="0,0,0,14">
+        <!-- Folder: type or paste a path, or browse with the Windows folder picker -->
+        <Border Grid.Row="1" x:Name="FolderCard" Style="{StaticResource Card}" Padding="20,14" Margin="0,0,0,18">
           <Grid>
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="Auto"/>
               <ColumnDefinition Width="*"/>
               <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="22" Foreground="{StaticResource Gold}" VerticalAlignment="Center" Margin="0,0,16,0"/>
+            <TextBlock Style="{StaticResource Icon}" Text="&#xE8B7;" FontSize="26" Foreground="{StaticResource Gold}" Margin="0,0,18,0"/>
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-              <TextBlock x:Name="FolderPath" Text="{{folder.looking}}" FontFamily="Segoe UI Semibold" FontSize="15" TextTrimming="CharacterEllipsis"/>
-              <TextBlock x:Name="FolderInfo" Text="" Style="{StaticResource Hint}" Margin="0,3,0,0"/>
+              <TextBlock x:Name="FolderLabel" Text="{{folder.label}}" Style="{StaticResource Caption}" Margin="0,0,0,2"/>
+              <TextBox x:Name="FolderPath" Style="{StaticResource Field}" FontSize="15" Background="Transparent" BorderThickness="0,0,0,1" Padding="0,4" AutomationProperties.Name="{{folder.path.name}}" ToolTip="{{folder.path.tip}}"/>
+              <TextBlock x:Name="FolderInfo" Text="" Style="{StaticResource Hint}" Margin="0,6,0,0"/>
             </StackPanel>
-            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-              <Button x:Name="BtnFolder" Style="{StaticResource CutButton}" Content="{{folder.change}}" Margin="12,0,0,0" ToolTip="{{folder.change.tip}}" AutomationProperties.Name="{{folder.change.name}}"/>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+              <Button x:Name="BtnFolderGo" Style="{StaticResource CutButton}" Content="{{folder.use}}" Margin="0,0,10,0" Visibility="Collapsed" AutomationProperties.Name="{{folder.use.name}}"/>
+              <Button x:Name="BtnFolder" Style="{StaticResource CutButton}" ToolTip="{{folder.change.tip}}" AutomationProperties.Name="{{folder.change.name}}">
+                <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE838;" FontSize="15" Margin="0,0,10,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/><AccessText Text="{{folder.change}}"/></StackPanel>
+              </Button>
             </StackPanel>
           </Grid>
         </Border>
 
-        <!-- Main area: one panel visible at a time -->
+        <!-- Views: one visible at a time -->
         <Grid Grid.Row="2">
           <!-- Start -->
           <Grid x:Name="PanelStart">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="640">
-              <TextBlock Text="{{start.title}}" FontFamily="Segoe UI Light" FontSize="24" TextWrapping="Wrap" TextAlignment="Center"/>
-              <TextBlock Style="{StaticResource Hint}" FontSize="13.5" TextAlignment="Center" Margin="0,14,0,0" LineHeight="21">
-                {{start.body}}</TextBlock>
-              <Button x:Name="BtnScan" Style="{StaticResource PrimaryButton}" Content="{{start.scan}}" HorizontalAlignment="Center" Margin="0,26,0,0" MinWidth="220" AutomationProperties.Name="{{start.scan.name}}"/>
-              <TextBlock x:Name="StartNote" Style="{StaticResource Hint}" TextAlignment="Center" Margin="0,14,0,0" Text="{{start.note}}"/>
-            </StackPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="760" Margin="0,6">
+                <Image x:Name="StartLogo" Width="92" Height="92" Margin="0,0,0,18" RenderOptions.BitmapScalingMode="HighQuality"/>
+                <TextBlock Style="{StaticResource H1}" TextAlignment="Center" Text="{{start.title}}"/>
+                <TextBlock Style="{StaticResource Lead}" TextAlignment="Center" Margin="0,14,0,0" Text="{{start.body}}"/>
+                <UniformGrid Columns="3" Margin="0,28,0,0">
+                  <StackPanel Margin="0,0,18,0">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE890;" FontSize="20" Foreground="{StaticResource Gold}" HorizontalAlignment="Center"/>
+                    <TextBlock Text="{{start.fact1.t}}" FontFamily="Segoe UI Semibold" TextAlignment="Center" TextWrapping="Wrap" Margin="0,8,0,4"/>
+                    <TextBlock Text="{{start.fact1.b}}" Style="{StaticResource Hint}" TextAlignment="Center"/>
+                  </StackPanel>
+                  <StackPanel Margin="9,0">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE8FD;" FontSize="20" Foreground="{StaticResource Gold}" HorizontalAlignment="Center"/>
+                    <TextBlock Text="{{start.fact2.t}}" FontFamily="Segoe UI Semibold" TextAlignment="Center" TextWrapping="Wrap" Margin="0,8,0,4"/>
+                    <TextBlock Text="{{start.fact2.b}}" Style="{StaticResource Hint}" TextAlignment="Center"/>
+                  </StackPanel>
+                  <StackPanel Margin="18,0,0,0">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE7A7;" FontSize="20" Foreground="{StaticResource Gold}" HorizontalAlignment="Center"/>
+                    <TextBlock Text="{{start.fact3.t}}" FontFamily="Segoe UI Semibold" TextAlignment="Center" TextWrapping="Wrap" Margin="0,8,0,4"/>
+                    <TextBlock Text="{{start.fact3.b}}" Style="{StaticResource Hint}" TextAlignment="Center"/>
+                  </StackPanel>
+                </UniformGrid>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,32,0,0">
+                  <Button x:Name="BtnScan" Style="{StaticResource PrimaryButton}" Content="{{start.scan}}" MinWidth="250" Height="46" AutomationProperties.Name="{{start.scan.name}}"/>
+                  <Button x:Name="BtnDemo" Style="{StaticResource CutButton}" Content="{{start.demo}}" Height="46" Margin="14,0,0,0" AutomationProperties.Name="{{start.demo.name}}"/>
+                </StackPanel>
+                <TextBlock x:Name="StartNote" Style="{StaticResource Hint}" TextAlignment="Center" Margin="0,16,0,0" Text="{{start.note}}"/>
+              </StackPanel>
+            </ScrollViewer>
           </Grid>
 
           <!-- Working -->
           <Grid x:Name="PanelWork" Visibility="Collapsed">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Width="460">
-              <TextBlock x:Name="WorkTitle" Text="{{work.scanning}}" FontFamily="Segoe UI Light" FontSize="24" TextAlignment="Center"/>
-              <ProgressBar x:Name="WorkBar" Height="3" Margin="0,20,0,0" IsIndeterminate="True" Foreground="{StaticResource Gold}" Background="#2A2A2F" BorderThickness="0"/>
-              <TextBlock x:Name="WorkDetail" Style="{StaticResource Hint}" TextAlignment="Center" Margin="0,12,0,0" Text=""/>
-              <Button x:Name="BtnCancel" Style="{StaticResource CutButton}" Content="{{work.cancel}}" HorizontalAlignment="Center" Margin="0,24,0,0"/>
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Width="520">
+              <TextBlock x:Name="WorkTitle" Text="{{work.scanning}}" Style="{StaticResource H1}" TextAlignment="Center"/>
+              <ProgressBar x:Name="WorkBar" Height="4" Margin="0,22,0,0" IsIndeterminate="True" Foreground="{StaticResource Gold}" Background="#2A2A2F" BorderThickness="0"/>
+              <TextBlock x:Name="WorkDetail" Style="{StaticResource Lead}" TextAlignment="Center" Margin="0,14,0,0" Text=""/>
+              <TextBlock x:Name="WorkNote" Style="{StaticResource Hint}" TextAlignment="Center" Margin="0,8,0,0" Text=""/>
+              <Button x:Name="BtnCancel" Style="{StaticResource CutButton}" Content="{{work.cancel}}" HorizontalAlignment="Center" Margin="0,26,0,0"/>
             </StackPanel>
           </Grid>
 
-          <!-- Results -->
+          <!-- Results: summary of the analysis (nothing changed yet). One scrolling page; the actions stay pinned. -->
           <Grid x:Name="PanelResults" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="*"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <ScrollViewer x:Name="ResultsScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+              <StackPanel Margin="0,0,10,8">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                  <TextBlock Text="{{results.title}}" Style="{StaticResource H2}" VerticalAlignment="Center"/>
+                  <Border Style="{StaticResource Chip}" Margin="14,0,0,0">
+                    <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE890;" FontSize="12" Foreground="{StaticResource GoldHi}" Margin="0,0,8,0"/><TextBlock Text="{{chip.dry}}" FontSize="12.5" Foreground="{StaticResource GoldHi}"/></StackPanel>
+                  </Border>
+                  <Button Style="{StaticResource HelpDot}" Tag="dryRun"/>
+                </StackPanel>
+
+                <UniformGrid Rows="1" Columns="4" Margin="0,0,0,14">
+                  <Border Style="{StaticResource Card}" Padding="18,12" Margin="0,0,12,0">
+                    <StackPanel><TextBlock x:Name="TileItems" Style="{StaticResource TileValue}" Text="0"/><TextBlock Text="{{tile.items}}" Style="{StaticResource Hint}"/></StackPanel>
+                  </Border>
+                  <Border Style="{StaticResource Card}" Padding="18,12" Margin="0,0,12,0">
+                    <StackPanel>
+                      <TextBlock x:Name="TileLong" Style="{StaticResource TileValue}" Text="0"/>
+                      <DockPanel><Button DockPanel.Dock="Right" Style="{StaticResource HelpDot}" Tag="longPath" VerticalAlignment="Top"/><TextBlock x:Name="TileLongLabel" Text="" Style="{StaticResource Hint}"/></DockPanel>
+                    </StackPanel>
+                  </Border>
+                  <Border Style="{StaticResource Card}" Padding="18,12" Margin="0,0,12,0">
+                    <StackPanel><TextBlock x:Name="TileFixed" Style="{StaticResource TileValue}" Foreground="{StaticResource Ok}" Text="0"/><TextBlock Text="{{tile.fixed}}" Style="{StaticResource Hint}"/></StackPanel>
+                  </Border>
+                  <Border Style="{StaticResource Card}" Padding="18,12">
+                    <StackPanel><TextBlock x:Name="TileLeft" Style="{StaticResource TileValue}" Text="0"/><TextBlock Text="{{tile.left}}" Style="{StaticResource Hint}"/></StackPanel>
+                  </Border>
+                </UniformGrid>
+
+                <Border BorderBrush="{StaticResource Gold}" BorderThickness="3,0,0,0" Background="{StaticResource Surface}" Padding="18,12" Margin="0,0,0,14">
+                  <StackPanel>
+                    <TextBlock x:Name="ExplainText" TextWrapping="Wrap" FontSize="14.5" LineHeight="22"/>
+                    <StackPanel x:Name="TrimOfferRow" Orientation="Horizontal" Margin="0,8,0,0" Visibility="Collapsed">
+                      <Button x:Name="BtnTrimOffer" Style="{StaticResource LinkButton}" Content="{{explain.trimOffer}}"/>
+                      <Button Style="{StaticResource HelpDot}" Tag="trim"/>
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                  <RadioButton x:Name="TabCompare" Style="{StaticResource TabHeader}" GroupName="Tabs" IsChecked="True" Content="{{tab.compare}}"/>
+                  <RadioButton x:Name="TabIssues" Style="{StaticResource TabHeader}" GroupName="Tabs" Content="{{tab.issues}}" Visibility="Collapsed"/>
+                  <RadioButton x:Name="TabLog" Style="{StaticResource TabHeader}" GroupName="Tabs" Content="{{tab.log}}" Visibility="Collapsed"/>
+                </StackPanel>
+                <Border Height="1" Background="{StaticResource Line}" Margin="0,0,0,12"/>
+                <Grid x:Name="CompareTools" Margin="0,0,0,12">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*" MaxWidth="320"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <RadioButton x:Name="FilterAll" Style="{StaticResource FilterToggle}" GroupName="Filter" IsChecked="True" Content="{{filter.all}}"/>
+                    <RadioButton x:Name="FilterFixed" Style="{StaticResource FilterToggle}" GroupName="Filter" Content="{{filter.fixed}}"/>
+                    <RadioButton x:Name="FilterLeft" Style="{StaticResource FilterToggle}" GroupName="Filter" Content="{{filter.left}}"/>
+                  </StackPanel>
+                  <Grid Grid.Column="1" MinWidth="150" Margin="10,0,16,0">
+                    <TextBox x:Name="SearchBox" Style="{StaticResource Field}" Padding="30,6,8,6" FontSize="13.5" AutomationProperties.Name="{{search.name}}"/>
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE721;" FontSize="13" Foreground="{StaticResource Text3}" Margin="10,0,0,0" IsHitTestVisible="False"/>
+                    <TextBlock x:Name="SearchHint" Text="{{search.hint}}" Foreground="{StaticResource Text3}" FontSize="13.5" Margin="31,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" TextTrimming="CharacterEllipsis"/>
+                  </Grid>
+                  <StackPanel x:Name="Pager" Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BtnPrev" Style="{StaticResource LinkButton}" AutomationProperties.Name="{{pager.prev}}"><TextBlock Style="{StaticResource Icon}" Text="&#xE76B;" FontSize="12" Margin="4,0"/></Button>
+                    <TextBlock x:Name="PageText" Foreground="{StaticResource Text2}" FontSize="13.5" Margin="10,0" VerticalAlignment="Center"/>
+                    <Button x:Name="BtnNext" Style="{StaticResource LinkButton}" AutomationProperties.Name="{{pager.next}}"><TextBlock Style="{StaticResource Icon}" Text="&#xE76C;" FontSize="12" Margin="4,0"/></Button>
+                  </StackPanel>
+                </Grid>
+                <StackPanel x:Name="CompareList"/>
+                <Border x:Name="IssuesBox" Style="{StaticResource Card}" Visibility="Collapsed" Height="460">
+                  <DataGrid x:Name="GridIssues" Style="{StaticResource Grid}" AutomationProperties.Name="{{grid.issues.name}}">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Header="{{col.issue}}" Binding="{Binding Issue}" Width="240"/>
+                      <DataGridTextColumn Header="{{col.type}}" Binding="{Binding TypeText}" Width="90"/>
+                      <DataGridTemplateColumn Header="{{col.path}}" Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                          <DataTemplate><TextBlock Text="{Binding Rel}" Style="{StaticResource Mono}"/></DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                      </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                  </DataGrid>
+                </Border>
+                <Border x:Name="LogBorder" Style="{StaticResource Card}" Visibility="Collapsed" Height="460">
+                  <TextBox x:Name="LogBox" IsReadOnly="True" Background="Transparent" Foreground="{StaticResource Text2}" BorderThickness="0" FontFamily="Consolas" FontSize="13"
+                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="12" AutomationProperties.Name="{{tab.log}}"/>
+                </Border>
+                <TextBlock x:Name="EmptyText" Visibility="Collapsed" Style="{StaticResource Lead}" HorizontalAlignment="Center" TextAlignment="Center" MaxWidth="560" Margin="0,30"/>
+              </StackPanel>
+            </ScrollViewer>
+
+            <Border Grid.Row="1" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,14,0,0">
+              <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                  <Button x:Name="BtnPlan" Style="{StaticResource CutButton}" Margin="0,0,12,0" AutomationProperties.Name="{{results.plan.name}}">
+                    <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE8FD;" FontSize="14" Margin="0,0,10,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/><AccessText Text="{{results.plan}}"/></StackPanel>
+                  </Button>
+                  <Button x:Name="BtnApply" Style="{StaticResource PrimaryButton}" Content="" MinWidth="220"/>
+                </StackPanel>
+                <WrapPanel VerticalAlignment="Center">
+                  <Button x:Name="BtnExport" Style="{StaticResource LinkButton}" Content="{{results.export}}" ToolTip="{{results.export.tip}}"/>
+                  <Button Style="{StaticResource HelpDot}" Tag="report"/>
+                  <Button x:Name="BtnRescan" Style="{StaticResource LinkButton}" Content="{{results.rescan}}" Margin="22,0,0,0"/>
+                </WrapPanel>
+              </DockPanel>
+            </Border>
+          </Grid>
+
+          <!-- Plan: every planned operation in full -->
+          <Grid x:Name="PanelPlan" Visibility="Collapsed">
             <Grid.RowDefinitions>
               <RowDefinition Height="Auto"/>
               <RowDefinition Height="Auto"/>
@@ -457,187 +804,377 @@
               <RowDefinition Height="*"/>
               <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <UniformGrid Rows="1" Columns="4" Margin="0,0,0,12">
-              <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16,10" Margin="0,0,10,0">
-                <StackPanel><TextBlock x:Name="TileItems" Style="{StaticResource TileValue}" Text="0"/><TextBlock Text="{{tile.items}}" Style="{StaticResource Hint}"/></StackPanel>
-              </Border>
-              <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16,10" Margin="0,0,10,0" ToolTip="{{tile.long.tip}}">
-                <StackPanel><TextBlock x:Name="TileLong" Style="{StaticResource TileValue}" Text="0"/><TextBlock x:Name="TileLongLabel" Text="" Style="{StaticResource Hint}"/></StackPanel>
-              </Border>
-              <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16,10" Margin="0,0,10,0">
-                <StackPanel><TextBlock x:Name="TileFixed" Style="{StaticResource TileValue}" Foreground="{StaticResource Ok}" Text="0"/><TextBlock Text="{{tile.fixed}}" Style="{StaticResource Hint}"/></StackPanel>
-              </Border>
-              <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16,10">
-                <StackPanel><TextBlock x:Name="TileLeft" Style="{StaticResource TileValue}" Text="0"/><TextBlock Text="{{tile.left}}" Style="{StaticResource Hint}"/></StackPanel>
-              </Border>
-            </UniformGrid>
-
-            <Border Grid.Row="1" x:Name="Explain" BorderBrush="{StaticResource Gold}" BorderThickness="2,0,0,0" Padding="14,6" Margin="0,0,0,10">
-              <StackPanel>
-                <TextBlock x:Name="ExplainText" TextWrapping="Wrap" LineHeight="20"/>
-                <Button x:Name="BtnTrimOffer" Style="{StaticResource LinkButton}" Content="{{explain.trimOffer}}" HorizontalAlignment="Left" Margin="0,6,0,0" Visibility="Collapsed"/>
-              </StackPanel>
-            </Border>
-
-            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,4">
-              <RadioButton x:Name="TabChanges" Style="{StaticResource TabHeader}" GroupName="Tabs" IsChecked="True" Content="{{tab.changes}}"/>
-              <RadioButton x:Name="TabPaths" Style="{StaticResource TabHeader}" GroupName="Tabs" Content="{{tab.paths}}"/>
-              <RadioButton x:Name="TabIssues" Style="{StaticResource TabHeader}" GroupName="Tabs" Content="{{tab.issues}}" Visibility="Collapsed"/>
-              <RadioButton x:Name="TabLog" Style="{StaticResource TabHeader}" GroupName="Tabs" Content="{{tab.log}}" Visibility="Collapsed"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+              <Button x:Name="BtnPlanBack" Style="{StaticResource LinkButton}" AutomationProperties.Name="{{nav.back}}">
+                <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE72B;" FontSize="13" Margin="0,0,8,0"/><TextBlock Text="{{nav.back}}"/></StackPanel>
+              </Button>
+              <TextBlock Text="/" Foreground="{StaticResource Text3}" Margin="14,0" VerticalAlignment="Center"/>
+              <Button x:Name="BtnCrumbSummary" Style="{StaticResource LinkButton}" Content="{{nav.summary}}"/>
+              <TextBlock Text="/" Foreground="{StaticResource Text3}" Margin="14,0" VerticalAlignment="Center"/>
+              <TextBlock Text="{{plan.title}}" Foreground="{StaticResource Text2}" VerticalAlignment="Center"/>
             </StackPanel>
-
-            <Border Grid.Row="3" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1">
-              <Grid>
-                <DataGrid x:Name="GridChanges" Style="{StaticResource Grid}" AutomationProperties.Name="{{grid.changes.name}}">
-                  <DataGrid.Columns>
-                    <DataGridTemplateColumn x:Name="ColSelect" Header="" Width="38" Visibility="Collapsed">
-                      <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><CheckBox Style="{StaticResource Check}" IsChecked="{Binding Selected, Mode=OneWay}" Tag="sel" ToolTip="{{col.include}}"/></DataTemplate>
-                      </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="{{col.current}}" Width="2*">
-                      <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                          <StackPanel>
-                            <TextBlock Text="{Binding OriginalName}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Rel}"/>
-                          </StackPanel>
-                        </DataTemplate>
-                      </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="{{col.new}}" Width="2*">
-                      <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><TextBlock Text="{Binding NewName}" Foreground="#E2C48A" TextTrimming="CharacterEllipsis" ToolTip="{Binding NewName}"/></DataTemplate>
-                      </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="{{col.saved}}" Binding="{Binding Saved}" Width="82"/>
-                    <DataGridTextColumn Header="{{col.items}}" Binding="{Binding Affects}" Width="82"/>
-                    <DataGridTextColumn x:Name="ColMethod" Header="{{col.how}}" Binding="{Binding MethodText}" Width="170" Visibility="Collapsed"/>
-                    <DataGridTemplateColumn x:Name="ColParent" Header="{{col.folder}}" Width="2*">
-                      <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><TextBlock Text="{Binding Parent}" Style="{StaticResource Mono}" Foreground="#B8B8BC" ToolTip="{Binding Parent}"/></DataTemplate>
-                      </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                  </DataGrid.Columns>
-                </DataGrid>
-                <DataGrid x:Name="GridPaths" Style="{StaticResource Grid}" Visibility="Collapsed" AutomationProperties.Name="{{grid.paths.name}}">
-                  <DataGrid.Columns>
-                    <DataGridTemplateColumn Header="{{col.status}}" Width="120">
-                      <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><TextBlock Text="{Binding Label}" Foreground="{Binding Color}"/></DataTemplate>
-                      </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="{{col.before}}" Binding="{Binding Before}" Width="64"/>
-                    <DataGridTextColumn Header="{{col.after}}" Binding="{Binding After}" Width="64"/>
-                    <DataGridTemplateColumn Header="{{col.path}}" Width="*">
-                      <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><TextBlock Text="{Binding Rel}" Style="{StaticResource Mono}" ToolTip="{Binding NewRel}"/></DataTemplate>
-                      </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                  </DataGrid.Columns>
-                </DataGrid>
-                <DataGrid x:Name="GridIssues" Style="{StaticResource Grid}" Visibility="Collapsed" AutomationProperties.Name="{{grid.issues.name}}">
-                  <DataGrid.Columns>
-                    <DataGridTextColumn Header="{{col.issue}}" Binding="{Binding Issue}" Width="220"/>
-                    <DataGridTextColumn Header="{{col.type}}" Binding="{Binding TypeText}" Width="70"/>
-                    <DataGridTemplateColumn Header="{{col.path}}" Width="*">
-                      <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><TextBlock Text="{Binding Rel}" Style="{StaticResource Mono}" ToolTip="{Binding Rel}"/></DataTemplate>
-                      </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                  </DataGrid.Columns>
-                </DataGrid>
-                <TextBox x:Name="LogBox" Visibility="Collapsed" IsReadOnly="True" Background="Transparent" Foreground="#B8B8BC" BorderThickness="0" FontFamily="Consolas" FontSize="12"
-                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="10" AutomationProperties.Name="{{tab.log}}"/>
-                <TextBlock x:Name="EmptyText" Visibility="Collapsed" Style="{StaticResource Hint}" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"/>
-              </Grid>
-            </Border>
-
-            <Grid Grid.Row="4" Margin="0,14,0,0">
-              <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Button x:Name="BtnRescan" Style="{StaticResource LinkButton}" Content="{{results.rescan}}" Margin="0,0,18,0"/>
-                <Button x:Name="BtnExport" Style="{StaticResource LinkButton}" Content="{{results.export}}" Margin="0,0,18,0" ToolTip="{{results.export.tip}}"/>
+            <StackPanel Grid.Row="1" Margin="0,0,0,12">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{{plan.title}}" Style="{StaticResource H2}" VerticalAlignment="Center"/>
+                <Border Style="{StaticResource Chip}" Margin="14,0,0,0"><TextBlock Text="{{chip.dry}}" FontSize="12.5" Foreground="{StaticResource GoldHi}"/></Border>
+                <Button Style="{StaticResource HelpDot}" Tag="plan"/>
               </StackPanel>
-              <Button x:Name="BtnApply" Style="{StaticResource PrimaryButton}" Content="" HorizontalAlignment="Right" MinWidth="200"/>
+              <TextBlock x:Name="PlanSummary" Style="{StaticResource Lead}" Margin="0,8,0,0"/>
+            </StackPanel>
+            <Grid Grid.Row="2" Margin="0,0,0,10">
+              <StackPanel Orientation="Horizontal">
+                <Grid Width="300">
+                  <TextBox x:Name="PlanSearch" Style="{StaticResource Field}" Padding="30,6,8,6" FontSize="13.5" AutomationProperties.Name="{{search.name}}"/>
+                  <TextBlock Style="{StaticResource Icon}" Text="&#xE721;" FontSize="13" Foreground="{StaticResource Text3}" Margin="10,0,0,0" IsHitTestVisible="False"/>
+                  <TextBlock x:Name="PlanSearchHint" Text="{{search.hint}}" Foreground="{StaticResource Text3}" FontSize="13.5" Margin="31,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                </Grid>
+                <StackPanel x:Name="PlanSelectTools" Orientation="Horizontal" Margin="20,0,0,0" Visibility="Collapsed">
+                  <Button x:Name="BtnSelAll" Style="{StaticResource LinkButton}" Content="{{plan.selectAll}}"/>
+                  <Button x:Name="BtnSelNone" Style="{StaticResource LinkButton}" Content="{{plan.selectNone}}" Margin="18,0,0,0"/>
+                </StackPanel>
+              </StackPanel>
+              <TextBlock x:Name="PlanCount" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource Text2}" FontSize="13.5"/>
+            </Grid>
+            <ListBox Grid.Row="3" x:Name="PlanList" Style="{StaticResource PlainList}" AutomationProperties.Name="{{plan.title}}">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="20,16" Margin="0,0,8,10">
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                      <CheckBox Style="{StaticResource Check}" Tag="sel" IsChecked="{Binding Selected, Mode=OneWay}" Visibility="{Binding CheckVisibility}" Margin="0,2,16,0" VerticalAlignment="Top" ToolTip="{{plan.include}}" AutomationProperties.Name="{{plan.include}}"/>
+                      <StackPanel Grid.Column="1">
+                        <DockPanel>
+                          <TextBlock DockPanel.Dock="Right" Text="{Binding SavedText}" Foreground="{StaticResource GoldHi}" FontFamily="Segoe UI Semibold" FontSize="14" Margin="16,0,0,0"/>
+                          <TextBlock TextWrapping="Wrap">
+                            <Run Text="{Binding OpTitle, Mode=OneWay}" FontFamily="Segoe UI Semibold" FontSize="15"/><Run Text="    "/><Run Text="{Binding MethodText, Mode=OneWay}" Foreground="{StaticResource Text2}" FontSize="13.5"/>
+                          </TextBlock>
+                        </DockPanel>
+                        <Grid Margin="0,12,0,0">
+                          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                          <StackPanel>
+                            <TextBlock Text="{{plan.current}}" Style="{StaticResource Caption}" Foreground="{StaticResource Text3}"/>
+                            <TextBlock Text="{Binding OriginalName}" TextWrapping="Wrap" FontSize="14.5"/>
+                          </StackPanel>
+                          <TextBlock Grid.Column="1" Style="{StaticResource Icon}" Text="&#xE72A;" FontSize="14" Foreground="{StaticResource Gold}" Margin="18,18,18,0" VerticalAlignment="Top"/>
+                          <StackPanel Grid.Column="2">
+                            <TextBlock Text="{{plan.new}}" Style="{StaticResource Caption}"/>
+                            <TextBlock Text="{Binding NewName}" TextWrapping="Wrap" FontSize="14.5" FontFamily="Segoe UI Semibold" Foreground="{StaticResource GoldHi}"/>
+                          </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{{plan.where}}" Style="{StaticResource Caption}" Foreground="{StaticResource Text3}" Margin="0,12,0,2"/>
+                        <TextBlock Text="{Binding ParentText}" Style="{StaticResource Mono}" Foreground="{StaticResource Text2}"/>
+                        <TextBlock Text="{Binding WhyText}" TextWrapping="Wrap" Margin="0,12,0,0" LineHeight="21"/>
+                        <TextBlock Text="{Binding ImpactText}" Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+                        <Expander Style="{StaticResource Exp}" Header="{Binding PathsHeader}" Margin="0,8,0,0" FontSize="13.5">
+                          <ItemsControl>
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate><TextBlock Text="{Binding}" Style="{StaticResource Mono}" Foreground="{StaticResource Text2}" Margin="0,0,0,6"/></DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </Expander>
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock Grid.Row="3" x:Name="PlanEmpty" Visibility="Collapsed" Style="{StaticResource Lead}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <Grid Grid.Row="4" Margin="0,14,0,0">
+              <Button x:Name="BtnPlanSummary" Style="{StaticResource LinkButton}" HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE72B;" FontSize="13" Margin="0,0,8,0"/><TextBlock Text="{{plan.toSummary}}"/></StackPanel>
+              </Button>
+              <Button x:Name="BtnPlanApply" Style="{StaticResource PrimaryButton}" Content="" MinWidth="220" HorizontalAlignment="Right"/>
             </Grid>
           </Grid>
 
-          <!-- Done -->
+          <!-- Done: what was changed, verified, and how to revert it -->
           <Grid x:Name="PanelDone" Visibility="Collapsed">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="660">
-              <TextBlock x:Name="DoneTitle" Text="{{done.title}}" FontFamily="Segoe UI Light" FontSize="26" TextAlignment="Center"/>
-              <TextBlock x:Name="DoneText" Style="{StaticResource Hint}" FontSize="13.5" TextAlignment="Center" Margin="0,14,0,0" LineHeight="21"/>
-              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,26,0,0">
-                <Button x:Name="BtnUndo" Style="{StaticResource CutButton}" Content="{{done.undo}}" Margin="0,0,12,0"/>
-                <Button x:Name="BtnReports" Style="{StaticResource CutButton}" Content="{{done.reports}}" Margin="0,0,12,0"/>
-                <Button x:Name="BtnAgain" Style="{StaticResource PrimaryButton}" Content="{{done.again}}"/>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="860" Margin="0,6">
+                <TextBlock x:Name="DoneIcon" Style="{StaticResource Icon}" Text="&#xE73E;" FontSize="34" Foreground="{StaticResource Ok}" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="DoneTitle" Text="{{done.title}}" Style="{StaticResource H1}" TextAlignment="Center" Margin="0,12,0,0"/>
+                <TextBlock x:Name="DoneText" Style="{StaticResource Lead}" TextAlignment="Center" Margin="0,12,0,0"/>
+                <UniformGrid Rows="1" Columns="4" Margin="0,24,0,0">
+                  <Border Style="{StaticResource Card}" Padding="18,12" Margin="0,0,12,0"><StackPanel><TextBlock x:Name="DoneRenamed" Style="{StaticResource TileValue}" Text="0"/><TextBlock Text="{{done.tile.renamed}}" Style="{StaticResource Hint}"/></StackPanel></Border>
+                  <Border Style="{StaticResource Card}" Padding="18,12" Margin="0,0,12,0"><StackPanel><TextBlock x:Name="DoneVerified" Style="{StaticResource TileValue}" Foreground="{StaticResource Ok}" Text="0"/><TextBlock Text="{{done.tile.verified}}" Style="{StaticResource Hint}"/></StackPanel></Border>
+                  <Border Style="{StaticResource Card}" Padding="18,12" Margin="0,0,12,0"><StackPanel><TextBlock x:Name="DoneStill" Style="{StaticResource TileValue}" Text="0"/><TextBlock Text="{{done.tile.still}}" Style="{StaticResource Hint}"/></StackPanel></Border>
+                  <Border Style="{StaticResource Card}" Padding="18,12"><StackPanel><TextBlock x:Name="DoneFailed" Style="{StaticResource TileValue}" Text="0"/><TextBlock Text="{{done.tile.failed}}" Style="{StaticResource Hint}"/></StackPanel></Border>
+                </UniformGrid>
+                <Border x:Name="RevertCard" BorderBrush="{StaticResource Gold}" BorderThickness="3,0,0,0" Background="{StaticResource Surface}" Padding="20,16" Margin="0,18,0,0">
+                  <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*" MaxWidth="320"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE7A7;" FontSize="24" Foreground="{StaticResource Gold}" Margin="0,0,18,0" VerticalAlignment="Top"/>
+                    <StackPanel Grid.Column="1">
+                      <TextBlock Text="{{done.revert.t}}" FontFamily="Segoe UI Semibold" FontSize="15"/>
+                      <TextBlock x:Name="RevertText" Text="{{done.revert.b}}" Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="18,0,0,0">
+                      <Button x:Name="BtnUndo" Style="{StaticResource CutButton}" AutomationProperties.Name="{{done.undo.name}}">
+                        <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE7A7;" FontSize="14" Margin="0,0,10,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/><AccessText Text="{{done.undo}}"/></StackPanel>
+                      </Button>
+                      <Button Style="{StaticResource HelpDot}" Tag="revert" Margin="10,0,0,0"/>
+                    </StackPanel>
+                  </Grid>
+                </Border>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
+                  <Button x:Name="BtnReports" Style="{StaticResource CutButton}" Content="{{done.reports}}" Margin="0,0,12,0"/>
+                  <Button x:Name="BtnAgain" Style="{StaticResource PrimaryButton}" Content="{{done.again}}"/>
+                </StackPanel>
               </StackPanel>
+            </ScrollViewer>
+          </Grid>
+
+          <!-- History: runs that renamed something, checked and reverted from here -->
+          <Grid x:Name="PanelHistory" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Button x:Name="BtnHistBack" Style="{StaticResource LinkButton}" HorizontalAlignment="Left" Margin="0,0,0,10" AutomationProperties.Name="{{nav.back}}">
+              <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE72B;" FontSize="13" Margin="0,0,8,0"/><TextBlock Text="{{nav.back}}"/></StackPanel>
+            </Button>
+            <StackPanel Grid.Row="1" Margin="0,0,0,14">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{{hist.title}}" Style="{StaticResource H2}" VerticalAlignment="Center"/>
+                <Button Style="{StaticResource HelpDot}" Tag="revert"/>
+              </StackPanel>
+              <TextBlock Text="{{hist.intro}}" Style="{StaticResource Lead}" Margin="0,8,0,0"/>
             </StackPanel>
+            <Grid Grid.Row="2">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="5*"/><ColumnDefinition Width="20"/><ColumnDefinition Width="7*"/></Grid.ColumnDefinitions>
+              <Border Style="{StaticResource Card}">
+                <Grid>
+                  <ListBox x:Name="HistList" Style="{StaticResource PickList}" AutomationProperties.Name="{{hist.title}}">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <StackPanel Margin="16,12">
+                          <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding StateText}" Foreground="{Binding StateColor}" FontSize="12.5" Margin="12,0,0,0"/>
+                            <TextBlock Text="{Binding TimeText}" FontFamily="Segoe UI Semibold"/>
+                          </DockPanel>
+                          <TextBlock Text="{Binding Folder}" Style="{StaticResource Mono}" Foreground="{StaticResource Text2}" FontSize="12.5" Margin="0,4,0,0"/>
+                          <TextBlock Text="{Binding CountText}" Style="{StaticResource Hint}" Margin="0,2,0,0"/>
+                        </StackPanel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                  <TextBlock x:Name="HistEmpty" Text="{{hist.empty}}" Style="{StaticResource Lead}" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" Visibility="Collapsed"/>
+                </Grid>
+              </Border>
+              <Border Grid.Column="2" Style="{StaticResource Card}" Padding="24,20">
+                <Grid>
+                  <ScrollViewer x:Name="HistDetail" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                    <StackPanel>
+                      <TextBlock x:Name="HistWhen" Style="{StaticResource H2}"/>
+                      <TextBlock x:Name="HistFolder" Style="{StaticResource Mono}" Foreground="{StaticResource Text2}" Margin="0,6,0,0"/>
+                      <TextBlock x:Name="HistMeta" Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+                      <Border Height="1" Background="{StaticResource Line}" Margin="0,16"/>
+                      <TextBlock Text="{{hist.check}}" Style="{StaticResource Caption}"/>
+                      <TextBlock x:Name="HistCheckText" TextWrapping="Wrap" LineHeight="21"/>
+                      <UniformGrid x:Name="HistCounts" Rows="1" Columns="3" Margin="0,14,0,0">
+                        <StackPanel><TextBlock x:Name="HistReady" Style="{StaticResource TileValue}" FontSize="26" Foreground="{StaticResource Ok}" Text="-"/><TextBlock Text="{{hist.ready}}" Style="{StaticResource Hint}"/></StackPanel>
+                        <StackPanel><TextBlock x:Name="HistAlready" Style="{StaticResource TileValue}" FontSize="26" Text="-"/><TextBlock Text="{{hist.already}}" Style="{StaticResource Hint}"/></StackPanel>
+                        <StackPanel><TextBlock x:Name="HistBlocked" Style="{StaticResource TileValue}" FontSize="26" Text="-"/><TextBlock Text="{{hist.blocked}}" Style="{StaticResource Hint}"/></StackPanel>
+                      </UniformGrid>
+                      <StackPanel x:Name="HistBlockedList" Margin="0,12,0,0"/>
+                      <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                        <Button x:Name="BtnHistRevert" Style="{StaticResource PrimaryButton}" Content="" MinWidth="200" Margin="0,0,12,0"/>
+                        <Button x:Name="BtnHistCheck" Style="{StaticResource CutButton}" Content="{{hist.recheck}}" Margin="0,0,12,0"/>
+                        <Button x:Name="BtnHistReport" Style="{StaticResource LinkButton}" Content="{{hist.openReport}}"/>
+                      </StackPanel>
+                    </StackPanel>
+                  </ScrollViewer>
+                  <TextBlock x:Name="HistPick" Text="{{hist.pick}}" Style="{StaticResource Lead}" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"/>
+                </Grid>
+              </Border>
+            </Grid>
+            <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,14,0,0">
+              <Button x:Name="BtnUndoFile" Style="{StaticResource LinkButton}" Content="{{hist.openFile}}" ToolTip="{{hist.openFile.tip}}"/>
+              <Button x:Name="BtnOpenReports" Style="{StaticResource LinkButton}" Content="{{hist.openFolder}}" Margin="24,0,0,0"/>
+            </StackPanel>
+          </Grid>
+
+          <!-- Demo: the real planner on made-up paths; no disk access -->
+          <Grid x:Name="PanelDemo" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Button x:Name="BtnDemoBack" Style="{StaticResource LinkButton}" HorizontalAlignment="Left" Margin="0,0,0,10" AutomationProperties.Name="{{nav.back}}">
+              <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE72B;" FontSize="13" Margin="0,0,8,0"/><TextBlock Text="{{nav.back}}"/></StackPanel>
+            </Button>
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,14">
+              <TextBlock Text="{{demo.title}}" Style="{StaticResource H2}" VerticalAlignment="Center"/>
+              <Border Style="{StaticResource Chip}" Margin="14,0,0,0"><TextBlock Text="{{demo.chip}}" FontSize="12.5" Foreground="{StaticResource GoldHi}"/></Border>
+            </StackPanel>
+            <Grid Grid.Row="2" Margin="0,0,0,12">
+              <StackPanel Orientation="Horizontal">
+                <RadioButton x:Name="DemoEx1" Style="{StaticResource TabHeader}" GroupName="DemoEx" IsChecked="True" Content="{{demo.ex1}}"/>
+                <RadioButton x:Name="DemoEx2" Style="{StaticResource TabHeader}" GroupName="DemoEx" Content="{{demo.ex2}}"/>
+                <RadioButton x:Name="DemoEx3" Style="{StaticResource TabHeader}" GroupName="DemoEx" Content="{{demo.ex3}}"/>
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <CheckBox x:Name="DemoTrim" Style="{StaticResource Check}" Content="{{demo.trim}}" VerticalAlignment="Center"/>
+                <Button Style="{StaticResource HelpDot}" Tag="trim"/>
+              </StackPanel>
+            </Grid>
+            <Border Grid.Row="3" Style="{StaticResource Card}" Padding="22,16" Margin="0,0,0,14">
+              <StackPanel>
+                <Grid>
+                  <StackPanel Orientation="Horizontal">
+                    <RadioButton x:Name="DemoBefore" Style="{StaticResource FilterToggle}" GroupName="DemoState" IsChecked="True" Content="{{demo.before}}"/>
+                    <RadioButton x:Name="DemoAfter" Style="{StaticResource FilterToggle}" GroupName="DemoState" Content="{{demo.after}}"/>
+                    <Button x:Name="BtnDemoPlay" Style="{StaticResource LinkButton}" Margin="14,0,0,0">
+                      <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE768;" FontSize="12" Margin="0,0,8,0"/><TextBlock Text="{{demo.play}}"/></StackPanel>
+                    </Button>
+                  </StackPanel>
+                  <TextBlock x:Name="DemoLen" HorizontalAlignment="Right" VerticalAlignment="Center" FontFamily="Segoe UI Semibold" FontSize="17"/>
+                </Grid>
+                <Grid x:Name="DemoRuler" Height="34" Margin="0,16,0,0" ClipToBounds="True">
+                  <StackPanel x:Name="DemoBar" Orientation="Horizontal" HorizontalAlignment="Left"/>
+                  <Rectangle x:Name="DemoTargetLine" Width="1.5" HorizontalAlignment="Left" Fill="{StaticResource Gold}"/>
+                  <Rectangle x:Name="DemoLimitLine" Width="2" HorizontalAlignment="Left" Fill="{StaticResource Bad}"/>
+                </Grid>
+                <Grid Height="20" Margin="0,4,0,0">
+                  <TextBlock x:Name="DemoTargetLabel" HorizontalAlignment="Left" FontSize="12" Foreground="{StaticResource Gold}"/>
+                  <TextBlock x:Name="DemoLimitLabel" HorizontalAlignment="Left" FontSize="12" Foreground="{StaticResource Bad}"/>
+                </Grid>
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                  <Border Width="12" Height="12" Background="#3A3A44" Margin="0,0,6,0"/><TextBlock Text="{{demo.legend.prefix}}" FontSize="12.5" Foreground="{StaticResource Text2}" Margin="0,0,18,0"/>
+                  <Border Width="12" Height="12" Background="#5A5A64" Margin="0,0,6,0"/><TextBlock Text="{{demo.legend.same}}" FontSize="12.5" Foreground="{StaticResource Text2}" Margin="0,0,18,0"/>
+                  <Border Width="12" Height="12" Background="{StaticResource Gold}" Margin="0,0,6,0"/><TextBlock Text="{{demo.legend.changed}}" FontSize="12.5" Foreground="{StaticResource Text2}"/>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+            <Grid Grid.Row="4">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="22"/><ColumnDefinition Width="360"/></Grid.ColumnDefinitions>
+              <Border Style="{StaticResource Card}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                  <StackPanel x:Name="DemoTree" Margin="20,16"/>
+                </ScrollViewer>
+              </Border>
+              <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                  <TextBlock Text="{{demo.what}}" Style="{StaticResource Caption}"/>
+                  <TextBlock x:Name="DemoExplain" TextWrapping="Wrap" LineHeight="21"/>
+                  <TextBlock Text="{{demo.keep}}" Style="{StaticResource Caption}" Margin="0,18,0,6"/>
+                  <TextBlock Text="{{demo.keep.b}}" Style="{StaticResource Hint}"/>
+                </StackPanel>
+              </ScrollViewer>
+            </Grid>
           </Grid>
         </Grid>
       </Grid>
 
       <!-- Pro settings -->
-      <Border Grid.Column="1" x:Name="SidePanel" Background="#19191C" BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0">
-        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,18">
-          <StackPanel>
-            <TextBlock Text="{{side.rules}}" Style="{StaticResource SectionTitle}"/>
-            <Grid Margin="0,0,0,10">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="70"/></Grid.ColumnDefinitions>
-              <StackPanel><TextBlock Text="{{side.limit}}"/><TextBlock Style="{StaticResource Hint}" Text="{{side.limit.hint}}"/></StackPanel>
-              <TextBox x:Name="OptLimit" Grid.Column="1" Style="{StaticResource Field}" Text="400" VerticalAlignment="Top" AutomationProperties.Name="{{side.limit}}"/>
-            </Grid>
-            <Grid Margin="0,0,0,10">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="70"/></Grid.ColumnDefinitions>
-              <StackPanel><TextBlock Text="{{side.margin}}"/><TextBlock Style="{StaticResource Hint}" Text="{{side.margin.hint}}"/></StackPanel>
-              <TextBox x:Name="OptMargin" Grid.Column="1" Style="{StaticResource Field}" Text="20" VerticalAlignment="Top" AutomationProperties.Name="{{side.margin}}"/>
-            </Grid>
-            <CheckBox x:Name="OptTrim" Style="{StaticResource Check}" Margin="0,4,0,4" AutomationProperties.Name="{{side.trim}}">
-              <StackPanel>
-                <TextBlock><Run Text="{{side.trim}}"/><Run Text="{{side.trim.tag}}" Foreground="#E0C060" FontSize="10.5" FontFamily="Segoe UI Semibold"/></TextBlock>
-                <TextBlock Style="{StaticResource Hint}" Text="{{side.trim.hint}}"/>
+      <Border Grid.Column="1" x:Name="SidePanel" Style="{StaticResource Card}" Margin="22,0,0,0">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <DockPanel Margin="20,16,20,8">
+            <Border DockPanel.Dock="Right" x:Name="RulesChip" Style="{StaticResource Chip}" Background="Transparent" BorderBrush="{StaticResource Line}"><TextBlock x:Name="RulesState" FontSize="12" Foreground="{StaticResource Text2}"/></Border>
+            <TextBlock Text="{{side.title}}" Style="{StaticResource H2}" FontSize="16" VerticalAlignment="Center"/>
+          </DockPanel>
+          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20,8,20,16">
+              <TextBlock Text="{{side.length}}" Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+              <Grid Margin="0,0,0,18">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <StackPanel>
+                  <StackPanel Orientation="Horizontal" Margin="0,0,0,6"><TextBlock Text="{{side.limit}}" Style="{StaticResource Label}"/><Button Style="{StaticResource HelpDot}" Tag="limit"/></StackPanel>
+                  <TextBox x:Name="OptLimit" Style="{StaticResource Field}" Height="38" Padding="8,0" Text="400" AutomationProperties.Name="{{side.limit}}"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                  <StackPanel Orientation="Horizontal" Margin="0,0,0,6"><TextBlock Text="{{side.margin}}" Style="{StaticResource Label}"/><Button Style="{StaticResource HelpDot}" Tag="margin"/></StackPanel>
+                  <TextBox x:Name="OptMargin" Style="{StaticResource Field}" Height="38" Padding="8,0" Text="20" AutomationProperties.Name="{{side.margin}}"/>
+                </StackPanel>
+              </Grid>
+
+              <TextBlock Text="{{side.names}}" Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <CheckBox x:Name="OptTrim" Style="{StaticResource Check}" AutomationProperties.Name="{{side.trim}}">
+                  <TextBlock><Run Text="{{side.trim}}" FontFamily="Segoe UI Semibold"/><Run Text="  "/><Run Text="{{side.trim.tag}}" Foreground="{StaticResource Warn}" FontSize="11.5" FontFamily="Segoe UI Semibold"/></TextBlock>
+                </CheckBox>
+                <Button Style="{StaticResource HelpDot}" Tag="trim"/>
               </StackPanel>
-            </CheckBox>
-            <Grid Margin="24,6,0,14">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="70"/></Grid.ColumnDefinitions>
-              <StackPanel><TextBlock Text="{{side.minName}}"/><TextBlock Style="{StaticResource Hint}" Text="{{side.minName.hint}}"/></StackPanel>
-              <TextBox x:Name="OptMinName" Grid.Column="1" Style="{StaticResource Field}" Text="20" VerticalAlignment="Top" AutomationProperties.Name="{{side.minName}}"/>
-            </Grid>
+              <Grid x:Name="MinNameRow" Margin="28,0,0,18">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="86"/></Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal"><TextBlock Text="{{side.minName}}" Style="{StaticResource Label}" FontFamily="Segoe UI"/><Button Style="{StaticResource HelpDot}" Tag="minName"/></StackPanel>
+                <TextBox x:Name="OptMinName" Grid.Column="1" Style="{StaticResource Field}" Height="38" Padding="8,0" Text="20" AutomationProperties.Name="{{side.minName}}"/>
+              </Grid>
 
-            <TextBlock Text="{{side.scope}}" Style="{StaticResource SectionTitle}" Margin="0,6,0,8"/>
-            <TextBlock Text="{{side.exclude}}"/>
-            <TextBlock Style="{StaticResource Hint}" Text="{{side.exclude.hint}}"/>
-            <TextBox x:Name="OptExclude" Style="{StaticResource Field}" AcceptsReturn="True" Height="54" Margin="0,4,0,10" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="{{side.exclude}}"/>
-            <TextBlock Text="{{side.protect}}"/>
-            <TextBlock Style="{StaticResource Hint}" Text="{{side.protect.hint}}"/>
-            <TextBox x:Name="OptProtect" Style="{StaticResource Field}" AcceptsReturn="True" Height="54" Margin="0,4,0,10" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="{{side.protect}}"/>
-            <TextBlock Text="{{side.prefix}}"/>
-            <TextBlock Style="{StaticResource Hint}" Text="{{side.prefix.hint}}"/>
-            <TextBox x:Name="OptPrefix" Style="{StaticResource Field}" Margin="0,4,0,14" FontFamily="Consolas" AutomationProperties.Name="{{side.prefix}}"/>
+              <TextBlock Text="{{side.scope}}" Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,6"><TextBlock Text="{{side.exclude}}" Style="{StaticResource Label}"/><Button Style="{StaticResource HelpDot}" Tag="exclude"/></StackPanel>
+              <TextBox x:Name="OptExclude" Style="{StaticResource Field}" AcceptsReturn="True" Height="62" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="13" AutomationProperties.Name="{{side.exclude}}"/>
+              <StackPanel Orientation="Horizontal" Margin="0,14,0,6"><TextBlock Text="{{side.protect}}" Style="{StaticResource Label}"/><Button Style="{StaticResource HelpDot}" Tag="protect"/></StackPanel>
+              <TextBox x:Name="OptProtect" Style="{StaticResource Field}" AcceptsReturn="True" Height="62" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="13" AutomationProperties.Name="{{side.protect}}"/>
+              <TextBlock Text="{{side.lines}}" Style="{StaticResource Hint}" FontSize="12" Margin="0,6,0,16"/>
 
-            <Button x:Name="BtnReplan" Style="{StaticResource CutButton}" Content="{{side.replan}}" HorizontalAlignment="Left" ToolTip="{{side.replan.tip}}"/>
-
-            <TextBlock Text="{{side.tools}}" Style="{StaticResource SectionTitle}" Margin="0,22,0,8"/>
-            <Button x:Name="BtnUndoFile" Style="{StaticResource LinkButton}" Content="{{side.undoFile}}" HorizontalAlignment="Left" Margin="0,0,0,8" ToolTip="{{side.undoFile.tip}}"/>
-            <Button x:Name="BtnEnv" Style="{StaticResource LinkButton}" Content="{{side.env}}" HorizontalAlignment="Left" Margin="0,0,0,8" ToolTip="{{side.env.tip}}"/>
-            <Button x:Name="BtnOpenReports" Style="{StaticResource LinkButton}" Content="{{side.openReports}}" HorizontalAlignment="Left" Margin="0,0,0,8"/>
-            <Button x:Name="BtnCopyCli" Style="{StaticResource LinkButton}" Content="{{side.copyCli}}" HorizontalAlignment="Left" ToolTip="{{side.copyCli.tip}}"/>
-          </StackPanel>
-        </ScrollViewer>
+              <Expander x:Name="AdvExpander" Style="{StaticResource Exp}" Header="{{side.advanced}}" FontSize="13.5">
+                <StackPanel Margin="0,6,0,0">
+                  <StackPanel Orientation="Horizontal" Margin="0,0,0,6"><TextBlock Text="{{side.prefix}}" Style="{StaticResource Label}" Foreground="{StaticResource Text}"/><Button Style="{StaticResource HelpDot}" Tag="prefix"/></StackPanel>
+                  <TextBox x:Name="OptPrefix" Style="{StaticResource Field}" Height="38" Padding="8,0" FontFamily="Consolas" FontSize="13" AutomationProperties.Name="{{side.prefix}}"/>
+                </StackPanel>
+              </Expander>
+            </StackPanel>
+          </ScrollViewer>
+          <Border Grid.Row="2" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="20,14,20,16">
+            <StackPanel>
+              <TextBlock x:Name="RulesDirty" Text="{{side.dirty}}" Foreground="{StaticResource Warn}" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10" Visibility="Collapsed"/>
+              <Button x:Name="BtnReplan" Style="{StaticResource CutButton}" Content="{{side.replan}}" HorizontalAlignment="Stretch" ToolTip="{{side.replan.tip}}"/>
+              <WrapPanel Margin="0,14,0,0">
+                <Button x:Name="BtnEnv" Style="{StaticResource LinkButton}" Content="{{side.env}}" Margin="0,0,20,4" ToolTip="{{side.env.tip}}" FontSize="13.5"/>
+                <Button x:Name="BtnCopyCli" Style="{StaticResource LinkButton}" Content="{{side.copyCli}}" Margin="0,0,0,4" ToolTip="{{side.copyCli.tip}}" FontSize="13.5"/>
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+        </Grid>
       </Border>
     </Grid>
 
     <!-- Status bar -->
-    <Grid Grid.Row="2" Background="#121214">
-      <TextBlock x:Name="StatusText" Text="{{status.ready}}" Foreground="{StaticResource Text2}" FontSize="12" VerticalAlignment="Center" Margin="18,0" TextTrimming="CharacterEllipsis"/>
-      <TextBlock x:Name="StatusRight" Text="" Foreground="{StaticResource Text2}" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="18,0"/>
+    <Grid Grid.Row="2" Background="{StaticResource Chrome}">
+      <TextBlock x:Name="StatusText" Text="{{status.ready}}" Foreground="{StaticResource Text2}" FontSize="12.5" VerticalAlignment="Center" Margin="18,0,300,0" TextTrimming="CharacterEllipsis"/>
+      <TextBlock x:Name="StatusRight" Text="" Foreground="{StaticResource Text2}" FontSize="12.5" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="18,0" TextTrimming="CharacterEllipsis" MaxWidth="560"/>
     </Grid>
+
+    <!-- Help drawer -->
+    <Grid x:Name="HelpLayer" Grid.Row="1" Grid.RowSpan="2" Visibility="Collapsed">
+      <Border x:Name="HelpScrim" Background="#99000000"/>
+      <Border x:Name="HelpDrawer" HorizontalAlignment="Right" Width="480" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+          <DockPanel Margin="28,20,16,10">
+            <Button x:Name="BtnHelpClose" DockPanel.Dock="Right" Style="{StaticResource CaptionButton}" Content="&#xE8BB;" IsTabStop="True" AutomationProperties.Name="{{help.close}}" WindowChrome.IsHitTestVisibleInChrome="False"/>
+            <TextBlock Text="{{help.title}}" Style="{StaticResource H2}" VerticalAlignment="Center"/>
+          </DockPanel>
+          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="HelpList" Margin="28,0,28,28"/>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <Popup x:Name="HelpPop" StaysOpen="False" AllowsTransparency="True" Placement="Bottom" PopupAnimation="Fade" VerticalOffset="8">
+      <Border Background="#202024" BorderBrush="{StaticResource GoldLo}" BorderThickness="1" Padding="18,14" MaxWidth="400">
+        <StackPanel>
+          <TextBlock x:Name="HelpPopTitle" FontFamily="Segoe UI Semibold" FontSize="14.5" Foreground="{StaticResource GoldHi}" TextWrapping="Wrap"/>
+          <TextBlock x:Name="HelpPopBody" FontSize="13.5" LineHeight="20" Foreground="{StaticResource Text}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+          <Button x:Name="HelpPopMore" Style="{StaticResource LinkButton}" Content="{{help.more}}" HorizontalAlignment="Left" Margin="0,10,0,0" FontSize="13"/>
+        </StackPanel>
+      </Border>
+    </Popup>
 
     <!-- Dialog overlay -->
     <Grid x:Name="Overlay" Grid.RowSpan="3" Visibility="Collapsed" Background="#B0000000">
-      <Border x:Name="DialogBox" Background="#1D1D20" BorderBrush="{StaticResource Gold}" BorderThickness="1" MaxWidth="620" MinWidth="440" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,24">
+      <Border x:Name="DialogBox" Background="{StaticResource Surface}" BorderBrush="{StaticResource Gold}" BorderThickness="1" MaxWidth="680" MinWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="32,26">
         <StackPanel>
-          <TextBlock x:Name="DlgTitle" FontFamily="Segoe UI Light" FontSize="22" TextWrapping="Wrap"/>
-          <StackPanel x:Name="DlgBody" Margin="0,14,0,0"/>
+          <TextBlock x:Name="DlgTitle" Style="{StaticResource H1}" FontSize="24"/>
+          <StackPanel x:Name="DlgBody" Margin="0,16,0,0"/>
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
             <Button x:Name="DlgNo" Style="{StaticResource CutButton}" Content="{{dlg.cancel}}" Margin="0,0,12,0" IsCancel="True"/>
             <Button x:Name="DlgYes" Style="{StaticResource PrimaryButton}" Content="{{dlg.ok}}"/>

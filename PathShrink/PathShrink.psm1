@@ -339,7 +339,11 @@ function New-PathShrinkPlan {
         for ($k = 1; $k -lt $seg.Count; $k++) { $rels[$k] = $rels[$k - 1] + '\' + $seg[$k] }
         $long.Add([pscustomobject]@{ Item = $it; Seg = $seg; Rels = $rels; Full = $prefixLen + $it.Rel.Length })
     }
-    $long = @($long | Sort-Object { $_.Seg.Count })
+    # Shallowest first, ties in scan order: a stable sort, so 5.1 and 7 plan the same renames.
+    $long = $long.ToArray()
+    $depthKey = New-Object 'long[]' $long.Count
+    for ($i = 0; $i -lt $long.Count; $i++) { $depthKey[$i] = [long]$long[$i].Seg.Count * 10000000 + $i }
+    [Array]::Sort($depthKey, $long)
     Write-Verbose ('{0} paths above {1} characters.' -f $long.Count, $target)
 
     $nameAt = { param($p, $k) $r = $p.Rels[$k]; if ($newName.ContainsKey($r)) { $newName[$r] } else { $p.Seg[$k] } }
@@ -370,29 +374,44 @@ function New-PathShrinkPlan {
     }
     $split = { param($name, $isFile) if ($isFile) { $e = [IO.Path]::GetExtension($name); , @($name.Substring(0, $name.Length - $e.Length), $e) } else { , @($name, '') } }
 
+    # Orderings below are stable (ties keep the level order) and built with [Array]::Sort on
+    # numeric keys: Sort-Object in this loop made planning ten times slower on large trees.
     $shorten = {
         param($p, [int[]]$ks, [bool]$isFile)
-        foreach ($k in @($ks | Sort-Object @{ e = { $nm = & $nameAt $p $_; $nm.Length - (Get-CleanName $nm).Length }; Descending = $true })) {
+        $n = $ks.Count
+        $keys = New-Object 'long[]' $n; $order = New-Object 'int[]' $n
+        for ($i = 0; $i -lt $n; $i++) {
+            $nm = & $nameAt $p $ks[$i]
+            $keys[$i] = - [long]($nm.Length - (Get-CleanName $nm).Length) * 1000 + $i; $order[$i] = $ks[$i]
+        }
+        [Array]::Sort($keys, $order)
+        foreach ($k in $order) {
             if ((& $lengthOf $p) -le $target) { return }
             $parts = & $split (& $nameAt $p $k) $isFile
             [void](& $setName $p $k ((Get-CleanName $parts[0]) + $parts[1]) 'clean-up')
         }
-        $order = @($ks | Sort-Object @{ e = { [int]((& $nameAt $p $_) -cmatch '[a-z]') }; Descending = $true },
-                                     @{ e = { ([regex]::Matches((& $nameAt $p $_), ' ')).Count }; Descending = $true })
+        # Names with lower-case letters first (ALL-CAPS names are hard to read joined), then the most spaces.
+        for ($i = 0; $i -lt $n; $i++) {
+            $nm = & $nameAt $p $ks[$i]
+            $keys[$i] = - ([long]([int]($nm -cmatch '[a-z]')) * 100000 + ([regex]::Matches($nm, ' ')).Count) * 1000 + $i; $order[$i] = $ks[$i]
+        }
+        [Array]::Sort($keys, $order)
         foreach ($k in $order) {
             if ((& $lengthOf $p) -le $target) { return }
             $parts = & $split (& $nameAt $p $k) $isFile
             [void](& $setName $p $k ((Get-JoinedName $parts[0]) + $parts[1]) 'no spaces')
         }
         # Trim one letter at a time from the longest name, so the cut is spread over the long
-        # names and none is reduced to its first words. Ties go to the deepest level (a fixed
-        # tie-break: 5.1 and 7 sort ties differently otherwise).
+        # names and none is reduced to its first words. Ties go to the deepest level.
         $guard = 0
         while ($AllowTrim -and (& $lengthOf $p) -gt $target -and $guard -lt 5000) {
             $guard++
-            $cands = @($ks | Where-Object { (& $split (& $nameAt $p $_) $isFile)[0].Length -gt $MinNameLength })
-            if (-not $cands.Count) { return }
-            $k = $cands | Sort-Object @{ e = { (& $split (& $nameAt $p $_) $isFile)[0].Length }; Descending = $true }, @{ e = { $_ }; Descending = $true } | Select-Object -First 1
+            $k = -1; $best = -1
+            foreach ($c in $ks) {
+                $len = (& $split (& $nameAt $p $c) $isFile)[0].Length
+                if ($len -gt $MinNameLength -and ($len -gt $best -or ($len -eq $best -and $c -gt $k))) { $k = $c; $best = $len }
+            }
+            if ($k -lt 0) { return }
             if (-not (& $setName $p $k (Get-TrimmedName (& $nameAt $p $k) 1 $isFile $MinNameLength) 'trim')) { return }
         }
     }
@@ -489,19 +508,29 @@ function Get-PathShrinkSummary {
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory)][psobject]$Plan)
-    $sel = @($Plan.Renames | Where-Object { $_.Selected })
-    $saved = 0; foreach ($r in $sel) { $saved += $r.Saved }
+    # Plain loops: the window calls this on every selection change, with thousands of paths.
+    $renames = 0; $folders = 0; $saved = 0
+    foreach ($r in $Plan.Renames) { if ($r.Selected) { $renames++; $saved += $r.Saved; if ($r.Type -eq 'Folder') { $folders++ } } }
+    $fixed = 0; $noMargin = 0; $rescued = 0; $tooLong = 0; $over = 0
+    foreach ($p in $Plan.Paths) {
+        if ($p.Before -gt $Plan.Limit) { $over++ }
+        switch ($p.Status) {
+            'Fixed' { $fixed++ }
+            'NoMargin' { $noMargin++; if ($p.Before -gt $Plan.Limit) { $rescued++ } }
+            'TooLong' { $tooLong++ }
+        }
+    }
     New-Object psobject -Property ([ordered]@{
         Items        = $Plan.ItemCount
         LongPaths    = $Plan.Paths.Count
-        OverLimit    = @($Plan.LongItems | Where-Object { $Plan.Library.Prefix.Length + $_.Item.Rel.Length -gt $Plan.Limit }).Count
-        Fixed        = @($Plan.Paths | Where-Object { $_.Status -eq 'Fixed' }).Count
-        NoMargin     = @($Plan.Paths | Where-Object { $_.Status -eq 'NoMargin' }).Count
-        Rescued      = @($Plan.Paths | Where-Object { $_.Status -eq 'NoMargin' -and $_.Before -gt $Plan.Limit }).Count
-        TooLong      = @($Plan.Paths | Where-Object { $_.Status -eq 'TooLong' }).Count
-        Renames      = $sel.Count
-        Folders      = @($sel | Where-Object { $_.Type -eq 'Folder' }).Count
-        Files        = @($sel | Where-Object { $_.Type -eq 'File' }).Count
+        OverLimit    = $over
+        Fixed        = $fixed
+        NoMargin     = $noMargin
+        Rescued      = $rescued
+        TooLong      = $tooLong
+        Renames      = $renames
+        Folders      = $folders
+        Files        = $renames - $folders
         CharsRemoved = $saved
         Unreadable   = $Plan.Errors.Count
     })
@@ -541,17 +570,25 @@ function Invoke-PathShrinkPlan {
     elseif (-not (Test-Path -LiteralPath $ReportFolder)) { New-Item -ItemType Directory -Path $ReportFolder -Force | Out-Null }
     $undo = Join-Path $ReportFolder 'undo.csv'
     $base = $Plan.Library.Base
+    # run.json says what this run was, so the history can list it later without the plan.
+    $run = [ordered]@{
+        tool = 'PathShrink'; version = (Get-PathShrinkVersion); started = (Get-Date).ToString('s'); finished = $null
+        folder = $Plan.Library.Path; library = $Plan.Library.Base; prefixLength = $Plan.Library.Prefix.Length
+        limit = $Plan.Limit; target = $Plan.Target; allowTrim = $Plan.AllowTrim; selected = $sel.Count; renamed = 0; failed = 0
+    }
+    $runFile = Join-Path $ReportFolder 'run.json'
+    $run | ConvertTo-Json | Set-Content -LiteralPath $runFile -Encoding UTF8
     $results = New-Object System.Collections.Generic.List[object]
     $ok = 0; $failed = 0; $n = 0
     foreach ($r in $sel) {
         $n++
         $path = Join-Path $base $r.Rel
         $row = New-Object psobject -Property ([ordered]@{
-            Depth = $r.Depth; Type = $r.Type; OriginalPath = $path; OriginalName = $r.OriginalName; NewName = $r.NewName; Result = '' })
+            Depth = $r.Depth; Type = $r.Type; OriginalPath = $path; OriginalName = $r.OriginalName; NewName = $r.NewName; Result = ''; Time = '' })
         try {
             Rename-Item -LiteralPath (ConvertTo-LongPath $path) -NewName $r.NewName -ErrorAction Stop
-            $row.Result = 'OK'; $ok++
-            $row | Select-Object Depth, Type, OriginalPath, OriginalName, NewName, Result | Export-Csv -LiteralPath $undo -NoTypeInformation -Encoding UTF8 -Append
+            $row.Result = 'OK'; $row.Time = (Get-Date).ToString('s'); $ok++
+            $row | Select-Object Depth, Type, OriginalPath, OriginalName, NewName, Result, Time | Export-Csv -LiteralPath $undo -NoTypeInformation -Encoding UTF8 -Append
             Write-Verbose ('Renamed: {0} -> {1}' -f $path, $r.NewName)
         } catch {
             $row.Result = 'ERROR: ' + $_.Exception.Message; $failed++
@@ -561,6 +598,8 @@ function Invoke-PathShrinkPlan {
         if ($OnProgress) { & $OnProgress $n $sel.Count }
     }
     $results | Export-Csv -LiteralPath (Join-Path $ReportFolder 'renames.csv') -NoTypeInformation -Encoding UTF8
+    $run.finished = (Get-Date).ToString('s'); $run.renamed = $ok; $run.failed = $failed
+    $run | ConvertTo-Json | Set-Content -LiteralPath $runFile -Encoding UTF8
 
     # Verify against the disk: re-read everything rather than trust Rename-Item.
     $inv = Get-PathShrinkInventory -Library $Plan.Library
@@ -577,28 +616,154 @@ function Invoke-PathShrinkPlan {
     }
 }
 
+function Resolve-UndoPath([hashtable]$Now, [string]$Path) {
+    # Where an original path is now: its nearest renamed ancestor is looked up in $Now
+    # (original path -> path on disk), the rest of the path is appended unchanged.
+    $cur = $Path; $tail = ''
+    while ($cur) {
+        if ($Now.ContainsKey($cur)) { return $Now[$cur] + $tail }
+        $leaf = Split-Path $cur -Leaf
+        $up = Split-Path $cur -Parent
+        if (-not $up -or $up -eq $cur) { break }
+        $tail = '\' + $leaf + $tail; $cur = $up
+    }
+    $Path
+}
+
+function Get-UndoRowState($Row, [hashtable]$Now, [hashtable]$States) {
+    $parentOrig = Split-Path $Row.OriginalPath -Parent
+    $parent = Resolve-UndoPath $Now $parentOrig
+    $current = Join-Path $parent $Row.NewName
+    $restore = Join-Path $parent $Row.OriginalName
+    $isNow = Test-Path -LiteralPath (ConvertTo-LongPath $current)
+    $isOld = Test-Path -LiteralPath (ConvertTo-LongPath $restore)
+    $blockedParent = $false
+    $p = $parentOrig
+    while ($p -and -not $blockedParent) {
+        if ($States.ContainsKey($p) -and $States[$p] -in 'Missing', 'Conflict', 'ParentMissing', 'TypeChanged') { $blockedParent = $true }
+        $up = Split-Path $p -Parent; if ($up -eq $p) { break }; $p = $up
+    }
+    $status = 'Ready'
+    if ($isNow -and $isOld) { $status = 'Conflict' }
+    elseif ($isOld) { $status = 'Restored' }
+    elseif (-not $isNow) { $status = $(if ($blockedParent) { 'ParentMissing' } else { 'Missing' }) }
+    elseif ([bool]($Row.Type -eq 'Folder') -ne (Test-Path -LiteralPath (ConvertTo-LongPath $current) -PathType Container)) { $status = 'TypeChanged' }
+    [pscustomobject]@{ Row = $Row; Status = $status; CurrentPath = $current; RestorePath = $restore }
+}
+
+function Test-PathShrinkUndo {
+    <#
+    .SYNOPSIS
+        Checks, without changing anything, which renames of an undo.csv can be reverted safely.
+    .DESCRIPTION
+        For every rename in the file, looks at the disk now:
+          Ready         the item is where PathShrink left it and its old name is free
+          Restored      it already has its original name again
+          Conflict      it is there, but something else now uses the original name
+          Missing       it is no longer where PathShrink left it (moved, renamed or deleted since)
+          ParentMissing a folder above it is Missing or blocked, so it cannot be found
+          TypeChanged   a file where a folder was renamed, or the other way round
+        Only Ready items are restored by Undo-PathShrink. Nothing is ever overwritten.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$UndoFile)
+    $rows = @(Import-Csv -LiteralPath $UndoFile | Where-Object { $_.Result -eq 'OK' } | Sort-Object { [int]$_.Depth }, OriginalPath)
+    $now = @{}; $states = @{}
+    $items = foreach ($r in $rows) {
+        $s = Get-UndoRowState $r $now $states
+        $states[$r.OriginalPath] = $s.Status
+        $now[$r.OriginalPath] = $(if ($s.Status -eq 'Restored') { $s.RestorePath } else { $s.CurrentPath })
+        [pscustomobject]@{
+            Type = $r.Type; OriginalPath = $r.OriginalPath; OriginalName = $r.OriginalName; NewName = $r.NewName
+            Renamed = $(if ($r.PSObject.Properties.Name -contains 'Time') { $r.Time } else { '' })
+            CurrentPath = $s.CurrentPath; Status = $s.Status
+        }
+    }
+    $items = @($items)
+    New-Object psobject -Property ([ordered]@{
+        UndoFile = $UndoFile
+        Total    = $items.Count
+        Ready    = @($items | Where-Object { $_.Status -eq 'Ready' }).Count
+        Restored = @($items | Where-Object { $_.Status -eq 'Restored' }).Count
+        Blocked  = @($items | Where-Object { $_.Status -notin 'Ready', 'Restored' }).Count
+        Items    = $items
+    })
+}
+
 function Undo-PathShrink {
     <#
     .SYNOPSIS
         Restores the original names listed in an undo.csv written by Invoke-PathShrinkPlan.
     .DESCRIPTION
-        Restores outermost first: a folder gets its name back before its children, so the
-        current path of each child is rebuilt with its parent already restored.
+        Checks every item first (see Test-PathShrinkUndo) and restores only those that are
+        still where PathShrink left them and whose original name is free. Anything moved,
+        renamed again, replaced or deleted since is skipped and reported, never overwritten.
+        Restores outermost first, so each child is found under its already restored parent.
+        The outcome is appended to restore.csv next to the undo file.
     #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
     param([Parameter(Mandatory)][string]$UndoFile)
-    $rows = @(Import-Csv -LiteralPath $UndoFile | Where-Object { $_.Result -eq 'OK' } | Sort-Object { [int]$_.Depth })
+    $rows = @(Import-Csv -LiteralPath $UndoFile | Where-Object { $_.Result -eq 'OK' } | Sort-Object { [int]$_.Depth }, OriginalPath)
     if (-not $rows.Count) { Write-Verbose 'The undo file lists no renames.'; return }
     if (-not $PSCmdlet.ShouldProcess(('{0} items' -f $rows.Count), 'Restore original names')) { return }
-    $ok = 0; $failed = 0
+    $ok = 0; $failed = 0; $skipped = 0; $already = 0
+    $now = @{}; $states = @{}
     $results = foreach ($f in $rows) {
-        $current = Join-Path (Split-Path $f.OriginalPath -Parent) $f.NewName
-        $res = 'OK'
-        try { Rename-Item -LiteralPath (ConvertTo-LongPath $current) -NewName $f.OriginalName -ErrorAction Stop; $ok++ }
-        catch { $res = 'ERROR: ' + $_.Exception.Message; $failed++ }
-        New-Object psobject -Property @{ Path = $current; RestoredName = $f.OriginalName; Result = $res }
+        $s = Get-UndoRowState $f $now $states
+        $res = $s.Status
+        $where = $s.CurrentPath
+        if ($s.Status -eq 'Ready') {
+            try {
+                Rename-Item -LiteralPath (ConvertTo-LongPath $s.CurrentPath) -NewName $f.OriginalName -ErrorAction Stop
+                $res = 'OK'; $ok++; $where = $s.RestorePath
+            } catch { $res = 'ERROR: ' + $_.Exception.Message; $failed++ }
+        } elseif ($s.Status -eq 'Restored') { $already++; $where = $s.RestorePath }
+        else { $skipped++ }
+        $states[$f.OriginalPath] = $(if ($res -eq 'OK') { 'Restored' } elseif ($res -like 'ERROR*') { 'Conflict' } else { $s.Status })
+        $now[$f.OriginalPath] = $where
+        Write-Verbose ('Undo {0}: {1}' -f $res, $s.CurrentPath)
+        [pscustomobject]@{ Time = (Get-Date).ToString('s'); Path = $s.CurrentPath; RestoredName = $f.OriginalName; Result = $res }
     }
-    New-Object psobject -Property @{ Restored = $ok; Failed = $failed; Results = @($results) }
+    $results = @($results)
+    try { $results | Export-Csv -LiteralPath (Join-Path (Split-Path $UndoFile -Parent) 'restore.csv') -NoTypeInformation -Encoding UTF8 -Append -WhatIf:$false }
+    catch { Write-Verbose ('restore.csv not written: {0}' -f $_.Exception.Message) }
+    New-Object psobject -Property @{ Restored = $ok; Failed = $failed; Skipped = $skipped; AlreadyRestored = $already; Results = $results }
+}
+
+function Get-PathShrinkHistory {
+    <#
+    .SYNOPSIS
+        Lists the runs that renamed something (folders with an undo.csv), newest first, and whether they were reverted.
+    .PARAMETER Folder
+        Reports folder to read. Default: %LOCALAPPDATA%\PathShrink\Reports.
+    #>
+    [CmdletBinding()]
+    param([string]$Folder = (Join-Path $env:LOCALAPPDATA 'PathShrink\Reports'))
+    if (-not (Test-Path -LiteralPath $Folder)) { return }
+    $runs = foreach ($d in @(Get-ChildItem -LiteralPath $Folder -Directory -ErrorAction SilentlyContinue)) {
+        $undo = Join-Path $d.FullName 'undo.csv'
+        if (-not (Test-Path -LiteralPath $undo)) { continue }
+        $info = $null
+        try { $info = Get-Content -LiteralPath (Join-Path $d.FullName 'run.json') -Raw -ErrorAction Stop | ConvertFrom-Json } catch { Write-Verbose ('No run.json in {0}' -f $d.FullName) }
+        $rows = @(Import-Csv -LiteralPath $undo | Where-Object { $_.Result -eq 'OK' })
+        $when = $d.CreationTime
+        if ($info -and $info.started) { try { $when = [datetime]::Parse($info.started, [Globalization.CultureInfo]::InvariantCulture) } catch { Write-Verbose 'Bad start time' } }
+        $restore = Join-Path $d.FullName 'restore.csv'
+        $restoredAt = $null; $restoredCount = 0
+        if (Test-Path -LiteralPath $restore) {
+            $rr = @(Import-Csv -LiteralPath $restore)
+            $restoredCount = @($rr | Where-Object { $_.Result -eq 'OK' }).Count
+            $restoredAt = (Get-Item -LiteralPath $restore).LastWriteTime
+        }
+        $folderPath = $(if ($info -and $info.folder) { [string]$info.folder } elseif ($rows.Count) { Split-Path ($rows | Sort-Object { [int]$_.Depth } | Select-Object -First 1).OriginalPath -Parent } else { '' })
+        New-Object psobject -Property ([ordered]@{
+            Time = $when; Folder = $folderPath; Renamed = $rows.Count
+            Failed = $(if ($info) { [int]$info.failed } else { 0 })
+            RestoredAt = $restoredAt; RestoredCount = $restoredCount
+            UndoFile = $undo; ReportFolder = $d.FullName
+        })
+    }
+    @($runs) | Sort-Object Time -Descending
 }
 
 # --------------------------------------------------------------------------------------
@@ -670,12 +835,18 @@ function Export-PathShrinkReport {
     [void]$sb.Append('<!doctype html><html><head><meta charset="utf-8"><title>PathShrink report</title><style>')
     [void]$sb.Append('body{font:14px Segoe UI,sans-serif;background:#161618;color:#e6e6e8;margin:24px}h1{color:#c9a96e;font-weight:300}')
     [void]$sb.Append('table{border-collapse:collapse;width:100%;margin:12px 0 28px}td,th{border-bottom:1px solid #333;padding:4px 8px;text-align:left;vertical-align:top}')
-    [void]$sb.Append('th{color:#c9a96e;font-weight:600}.n{text-align:right}.Fixed{color:#7fc97f}.NoMargin{color:#e0c060}.TooLong{color:#ff7b72}code{color:#bbb}</style></head><body>')
+    [void]$sb.Append('th{color:#c9a96e;font-weight:600}.n{text-align:right}.Fixed{color:#7fc97f}.NoMargin{color:#e0c060}.TooLong{color:#ff7b72}code{color:#bbb;word-break:break-all}del{color:#ff9b92;text-decoration:line-through}mark{background:#3a3020;color:#e2c48a}</style></head><body>')
     [void]$sb.Append(('<h1>PathShrink report</h1><p>Folder: <code>{0}</code><br>Server prefix: {1} characters ({2})<br>Limit {3}, target {4}. Scanned {5} items, {6} long paths, {7} fixed by the plan, {8} renames.</p>' -f (& $enc $Plan.Library.Path), $Plan.Library.Prefix.Length, (& $enc $Plan.Library.PrefixSource), $Plan.Limit, $Plan.Target, $s.Items, $s.LongPaths, $s.Fixed, $s.Renames))
     [void]$sb.Append('<h2>Renames</h2><table><tr><th>Type</th><th class="n">Saved</th><th class="n">Items</th><th>Folder</th><th>Current name</th><th>New name</th></tr>')
     foreach ($r in ($Plan.Renames | Where-Object { $_.Selected })) { [void]$sb.Append(('<tr><td>{0}</td><td class="n">{1}</td><td class="n">{2}</td><td><code>{3}</code></td><td>{4}</td><td>{5}</td></tr>' -f $r.Type, $r.Saved, $r.Affects, (& $enc $r.Parent), (& $enc $r.OriginalName), (& $enc $r.NewName))) }
-    [void]$sb.Append('</table><h2>Long paths</h2><table><tr><th>Status</th><th class="n">Before</th><th class="n">After</th><th>Path</th></tr>')
-    foreach ($p in $Plan.Paths) { [void]$sb.Append(('<tr><td class="{0}">{0}</td><td class="n">{1}</td><td class="n">{2}</td><td><code>{3}</code></td></tr>' -f $p.Status, $p.Before, $p.After, (& $enc $p.Rel))) }
+    [void]$sb.Append('</table><h2>Long paths</h2><p>Changed names are highlighted; everything else in the path stays as it is.</p><table><tr><th>Status</th><th class="n">Before</th><th class="n">After</th><th>Path before / after</th></tr>')
+    foreach ($p in $Plan.Paths) {
+        $a = $p.Rel.Split('\'); $b = $p.NewRel.Split('\')
+        $old = @(for ($i = 0; $i -lt $a.Count; $i++) { if ($a[$i] -cne $b[$i]) { '<del>' + (& $enc $a[$i]) + '</del>' } else { & $enc $a[$i] } }) -join '\'
+        $new = @(for ($i = 0; $i -lt $b.Count; $i++) { if ($a[$i] -cne $b[$i]) { '<mark>' + (& $enc $b[$i]) + '</mark>' } else { & $enc $b[$i] } }) -join '\'
+        $after = $(if ($p.NewRel -ceq $p.Rel) { '' } else { '<br><code>' + $new + '</code>' })
+        [void]$sb.Append(('<tr><td class="{0}">{0}</td><td class="n">{1}</td><td class="n">{2}</td><td><code>{3}</code>{4}</td></tr>' -f $p.Status, $p.Before, $p.After, $old, $after))
+    }
     [void]$sb.Append('</table></body></html>')
     [IO.File]::WriteAllText((Join-Path $Folder 'report.html'), $sb.ToString(), (New-Object Text.UTF8Encoding $true))
     $Folder
@@ -785,6 +956,8 @@ function Start-PathShrink {
     <#
     .SYNOPSIS
         Opens the PathShrink window.
+    .PARAMETER ReportRoot
+        Where runs keep their reports and undo records. Default: %LOCALAPPDATA%\PathShrink\Reports.
     #>
     [CmdletBinding()]
     param(
@@ -793,7 +966,8 @@ function Start-PathShrink {
         [string]$Root,
         [string]$Upn,
         [string]$Prefix,
-        [ValidateSet('en', 'es', 'pt')][string]$Language
+        [ValidateSet('en', 'es', 'pt')][string]$Language,
+        [string]$ReportRoot
     )
     . (Join-Path $script:ModuleRoot 'gui\Gui.ps1')
     $a = @{} + $PSBoundParameters
@@ -805,5 +979,5 @@ function Start-PathShrink {
 }
 
 Export-ModuleMember -Function Get-PathShrinkLibrary, Get-PathShrinkAccount, Get-PathShrinkSyncMount, Get-PathShrinkInventory,
-    New-PathShrinkPlan, Update-PathShrinkPlan, Get-PathShrinkSummary, Invoke-PathShrinkPlan, Undo-PathShrink,
+    New-PathShrinkPlan, Update-PathShrinkPlan, Get-PathShrinkSummary, Invoke-PathShrinkPlan, Undo-PathShrink, Test-PathShrinkUndo, Get-PathShrinkHistory,
     Find-PathShrinkSyncIssue, Export-PathShrinkReport, Get-PathShrinkEnvironment, Invoke-PathShrink, Start-PathShrink

@@ -32,15 +32,22 @@ checks the result on disk and keeps an undo file.
   names, spread across levels, never below a minimum length you choose.
 - **Folders before files.** File names are not renamed unless trimming is on and no folder can give more.
 - **Minimal changes.** A rename is kept only if it fixes a path or brings it back under the hard limit.
-- **Preview, confirm, verify, undo.** Nothing changes until you confirm. After renaming it re-reads
-  the disk, and every successful rename is written to `undo.csv` as it happens.
+- **Preview, confirm, verify.** Nothing changes until you confirm. After renaming it re-reads the disk
+  to check the result.
+- **Checked revert.** Every successful rename is written to `undo.csv` the moment it happens. A revert
+  first checks each item on disk and restores only those still where PathShrink left them with their
+  old name free; anything moved, renamed again, replaced or deleted since is skipped and listed,
+  never overwritten.
 - **Safe scope.** Never renames above the folder you pick, nor the first level of a personal OneDrive
   (Desktop, Documents, Pictures). Shortcuts to other libraries, junctions and symbolic links are skipped.
 - **No downloads.** Cloud-only (Files On-Demand) files are listed, not downloaded.
 - **Other sync blockers** (Pro): reserved names (`CON`, `.lock`...), `_vti_`, `~$` lock files,
   leading or trailing spaces, names over 255 characters.
 - **Reports** in CSV, JSON and HTML.
-- **GUI with Basic and Pro modes** in English, Spanish and Portuguese (EN / ES / PT switch, follows the Windows language by default), and the same engine from the command line.
+- **GUI with Basic and Pro modes** in English, Spanish and Portuguese (EN / ES / PT switch, follows the
+  Windows language by default): before/after comparison, full execution plan, history of applied
+  changes with revert, contextual help, an interactive demonstration on made-up data, and the Windows
+  folder picker. The same engine runs from the command line.
 - Windows PowerShell 5.1 and PowerShell 7. No admin rights, no modules to install, no internet access needed.
 
 ## Quick start
@@ -72,32 +79,51 @@ and accounts are read from the current user's profile.
 
 ## Using the window
 
-| Basic | Pro |
-|---|---|
-| ![Basic mode](docs/images/results.png) | ![Pro mode](docs/images/pro.png) |
+![Before and after comparison of each long path](docs/images/results.png)
 
-**Basic** (default) is a guided flow: the OneDrive folder is detected for you; *Scan* lists what
-is too long and why; *Review and apply* shows a summary of what will happen and asks for
-confirmation; the last page shows the verified result and an *Undo* button. If some paths only fit
-by removing letters, Basic offers that plan as a separate, clearly marked step.
+The window follows five steps and says at each one whether anything on disk can change:
+**Folder** (choose), **Analyse** (read only), **Review** (simulation), **Apply** (renames) and
+**Result** (checked on disk).
 
-**Pro** adds:
+- **Folder.** The OneDrive folder is detected. *Browse...* opens the Windows folder picker (address bar,
+  search, paste a path); you can also paste a path in the box and press Enter, or drop a folder on the window.
+- **Analysis.** Totals, a plain-language explanation, and a **before and after** card for the ten most
+  relevant paths (problems first, then the biggest changes): both full paths with the changed names
+  highlighted, length bars against the limit and the target, and the reason for each change. Filter,
+  search and page through the rest; *Export full report* writes all of them to HTML, CSV and JSON.
+- **Execution plan.** *View plan* lists every rename: current and new name, location, which long paths
+  need it and how much they shrink, and what else it affects. *Back* and *Summary* return without losing
+  anything.
+- **Apply.** A confirmation sums up what will change, what will not, and how to revert.
+- **Applied changes.** Every run that renamed something, from this computer. Pick one: each item is
+  checked on disk, and you see how many can be restored, how many already have their old name and which
+  ones changed since (they are left alone). *Revert* restores the safe ones.
+- **Help** (`?` in the title bar, `F1`, or the small `?` next to each option) explains every term
+  precisely, for example that *shorten names* removes letters from folder names and nothing else.
+- **See how it works** runs the real planner on made-up paths in memory, with an animated before and
+  after. It never reads or writes your files.
+
+![Execution plan](docs/images/plan.png)
+
+**Pro** adds the rules panel and per-rename control:
 
 | Setting | What it does | Default |
 |---|---|---|
 | Limit | Server limit in characters | 400 |
 | Safety margin | Also fix paths this close to the limit, so the next longer file name does not fail again | 20 |
-| Allow trimming letters | Cut letters from the end of the longest folder names (marked *changes words*) | off |
-| Shortest name | Never trim a name below this length | 20 |
+| Shorten names | Remove letters from the end of the longest folder names (marked *removes letters*) | off |
+| Shortest name | Never shorten a name below this length | 20 |
 | Exclude | Wildcards for folders not to scan or rename | none |
-| Protect names | Wildcards for names that are counted but never renamed | none |
-| Server prefix | Library path to use when it cannot be detected (copied folders, other machines) | detected |
+| Never rename | Wildcards for names that are counted but never renamed | none |
+| Server prefix (Advanced) | Library path to use when it cannot be detected (copied folders, other machines) | detected |
 
-Plus a check box per rename (the totals update live), the *How* column (which step produced each
-name), *Other sync issues*, the *Log*, *Undo from a file*, *Check this computer*, and
-*Copy as command line* to repeat the same run in a script.
+Plus a check box per rename in the plan (the totals update live), *Other sync issues*, the *Log*,
+*Check this computer*, *Copy as command* to repeat the same run in a script, and *Open another
+undo.csv* to revert a run recorded elsewhere.
 
-![Confirmation before renaming](docs/images/confirm.png)
+| Applied changes and revert | Demonstration |
+|---|---|
+| ![Applied changes](docs/images/history.png) | ![Demonstration](docs/images/demo.png) |
 
 ## Command line
 
@@ -108,13 +134,16 @@ Invoke-PathShrink -WhatIf                                   # plan only, current
 Invoke-PathShrink -Path "$env:OneDriveCommercial\Clients"   # plan, confirm, rename, verify
 Invoke-PathShrink -AllowTrim -MinNameLength 25 -Confirm:$false
 Invoke-PathShrink -Root D:\Export\Legal -Prefix 'sites/Legal/Shared Documents/' -WhatIf
-Undo-PathShrink -UndoFile "$env:LOCALAPPDATA\PathShrink\Reports\<run>\undo.csv"
+Get-PathShrinkHistory                                       # runs that renamed something
+Test-PathShrinkUndo -UndoFile "$env:LOCALAPPDATA\PathShrink\Reports\<run>\undo.csv"   # what can be reverted
+Undo-PathShrink -UndoFile "$env:LOCALAPPDATA\PathShrink\Reports\<run>\undo.csv"       # revert the safe ones
 ```
 
 `.\PathShrink.ps1` with any of these parameters runs the command line; without parameters it opens
 the window. The building blocks are exported too: `Get-PathShrinkLibrary`,
 `Get-PathShrinkInventory`, `New-PathShrinkPlan`, `Invoke-PathShrinkPlan`, `Find-PathShrinkSyncIssue`,
-`Export-PathShrinkReport`. `Get-Help <command> -Full` documents each one.
+`Export-PathShrinkReport`, `Test-PathShrinkUndo`, `Get-PathShrinkHistory`. `Get-Help <command> -Full`
+documents each one.
 
 ## How the plan works
 
@@ -151,8 +180,13 @@ Every letter is still there, and the file name is untouched.
 - It makes no network connection. `install.ps1` downloads the release from GitHub; PathShrink itself does not.
 
 Side effects of any rename, which the confirmation repeats: desktop shortcuts, Quick access pins,
-recent-file lists and copied links that point inside a renamed folder stop working. Files open in
-another program cannot be renamed: they are reported, the rest continues.
+recent-file lists and copied links that point inside a renamed folder stop working until the rename
+is reverted. Files open in another program cannot be renamed: they are reported, the rest continues.
+
+What a revert can and cannot do: it gives names back, using the record of that run. It cannot restore
+an item that was renamed again, moved or deleted after the run, or whose old name is now used by
+something else; those are skipped and listed so you can decide. Other people see both the renames and
+the revert once OneDrive syncs.
 
 ## Requirements
 

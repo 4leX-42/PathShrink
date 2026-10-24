@@ -30,7 +30,14 @@ guarda un fichero para deshacer.
   personal (Escritorio, Documentos, Imágenes); salta accesos directos a otras bibliotecas, uniones y enlaces simbólicos.
 - **No descarga** los archivos que solo están en la nube.
 - **Otros bloqueos de sincronización** (modo Pro): nombres reservados, `_vti_`, `~$`, espacios al inicio o final.
-- Informes CSV, JSON y HTML. GUI con modo **Básico** y **Pro** en inglés, castellano y portugués (selector EN / ES / PT; por defecto, el idioma de Windows), y línea de comandos.
+- **Reversión comprobada**: cada cambio de nombre se anota en `undo.csv` en el momento. Al revertir se
+  comprueba antes cada elemento y solo se restaura si sigue donde PathShrink lo dejó y su nombre antiguo
+  está libre; lo que se haya movido, renombrado otra vez, sustituido o borrado se salta y se indica, sin
+  sobrescribir nada.
+- Ventana con modo **Básico** y **Pro** en inglés, castellano y portugués (selector EN / ES / PT; por
+  defecto, el idioma de Windows): comparación antes y después, plan de ejecución completo, historial de
+  cambios aplicados con reversión, ayuda contextual, demostración interactiva con datos inventados y el
+  selector de carpetas de Windows. Informes HTML, CSV y JSON, y línea de comandos.
 - Windows PowerShell 5.1 y PowerShell 7. Sin administrador, sin módulos, sin internet.
 
 ## Empezar
@@ -53,7 +60,9 @@ Ejecútalo **con la cuenta del usuario dueño del OneDrive**, sin elevar con otr
 Import-Module .\PathShrink\PathShrink.psd1
 Invoke-PathShrink -WhatIf                     # solo el plan
 Invoke-PathShrink -AllowTrim -MinNameLength 25
-Undo-PathShrink -UndoFile "$env:LOCALAPPDATA\PathShrink\Reports\<ejecucion>\undo.csv"
+Get-PathShrinkHistory                         # ejecuciones que renombraron algo
+Test-PathShrinkUndo -UndoFile "$env:LOCALAPPDATA\PathShrink\Reports\<ejecucion>\undo.csv"   # qué se puede revertir
+Undo-PathShrink -UndoFile "$env:LOCALAPPDATA\PathShrink\Reports\<ejecucion>\undo.csv"       # revierte lo seguro
 ```
 
 ## Qué cambia y qué no
@@ -63,7 +72,9 @@ fechas, permisos ni uso compartido; no borra, no mueve, no descarga, no toca el 
 configuración del sistema. Lee `HKCU\Software\Microsoft\OneDrive\Accounts` y
 `HKCU\Software\SyncEngines\Providers\OneDrive`, y solo escribe en `%LOCALAPPDATA%\PathShrink`.
 Como cualquier renombrado, los accesos directos, anclajes y enlaces copiados que apunten dentro de una
-carpeta renombrada dejan de funcionar.
+carpeta renombrada dejan de funcionar hasta que se revierte. Revertir devuelve nombres a partir del
+registro de esa ejecución; no puede restaurar lo que se renombró otra vez, se movió o se borró después,
+ni lo que tenga ocupado su nombre antiguo: eso se salta y se indica.
 
 Limitaciones, solución de problemas y detalle del algoritmo: en el [README en inglés](README.md).
 

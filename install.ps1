@@ -62,6 +62,7 @@ try {
         $s.TargetPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $s.Arguments = '-NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f (Join-Path $dest 'PathShrink.ps1')
         $s.WorkingDirectory = $dest
+        $s.IconLocation = (Join-Path $dest 'PathShrink\gui\PathShrink.ico') + ',0'
         $s.Description = 'Fix OneDrive and SharePoint paths over the 400-character limit'
         $s.Save()
     }

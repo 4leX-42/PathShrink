@@ -11,13 +11,13 @@
     FunctionsToExport    = @(
         'Start-PathShrink', 'Invoke-PathShrink',
         'Get-PathShrinkLibrary', 'Get-PathShrinkAccount', 'Get-PathShrinkSyncMount', 'Get-PathShrinkInventory',
-        'New-PathShrinkPlan', 'Update-PathShrinkPlan', 'Get-PathShrinkSummary', 'Invoke-PathShrinkPlan', 'Undo-PathShrink',
+        'New-PathShrinkPlan', 'Update-PathShrinkPlan', 'Get-PathShrinkSummary', 'Invoke-PathShrinkPlan', 'Undo-PathShrink', 'Test-PathShrinkUndo', 'Get-PathShrinkHistory',
         'Find-PathShrinkSyncIssue', 'Export-PathShrinkReport', 'Get-PathShrinkEnvironment'
     )
     CmdletsToExport      = @()
     VariablesToExport    = @()
     AliasesToExport      = @()
-    FileList             = @('PathShrink.psd1', 'PathShrink.psm1', 'gui\Gui.ps1', 'gui\MainWindow.xaml', 'gui\strings.en.json', 'gui\strings.es.json', 'gui\strings.pt.json')
+    FileList             = @('PathShrink.psd1', 'PathShrink.psm1', 'gui\Gui.ps1', 'gui\MainWindow.xaml', 'gui\strings.en.json', 'gui\strings.es.json', 'gui\strings.pt.json', 'gui\logo.png', 'gui\PathShrink.ico')
     PrivateData          = @{
         PSData = @{
             Tags         = @('OneDrive', 'SharePoint', 'LongPath', 'PathTooLong', 'Sync', 'Microsoft365', 'M365', 'SysAdmin', 'Windows', 'GUI', 'WPF')

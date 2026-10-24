@@ -9,16 +9,33 @@ OneDrive incidents; this version turns it into a module with a window, tests and
 
 ### Added
 - Window in English, Spanish and Portuguese, with an EN / ES / PT switch; the choice is remembered.
-- Window with Basic (guided) and Pro modes: detected folder, scan in the background,
-  summary tiles, plain-language explanation, per-rename selection with live totals (Pro),
-  confirmation summary, verified result, undo.
-- Pro settings: limit, safety margin, trimming, shortest name, exclude and protect wildcards,
-  server prefix override; log, other sync issues, undo from a file, environment check,
-  copy as command line.
+- Window with Basic (guided) and Pro modes: five steps that say which ones only read and which one
+  renames, scan in the background, summary tiles, plain-language explanation, confirmation summary,
+  verified result.
+- Before and after comparison: the ten most relevant paths per page (problems first), both full paths
+  with the changed names highlighted, length bars against the limit and the target, the reason for
+  each change; filter, search and paging for the rest.
+- Execution plan view: every rename in full (no truncated text), why it is needed, which long paths
+  it serves and how much they shrink, what else it affects; Back and Summary keep the selection.
+- Applied changes: a history of the runs that renamed something, each checked on disk before it can be
+  reverted (`Test-PathShrinkUndo`, `Get-PathShrinkHistory`).
+- Contextual help: a `?` next to each option and term, and a help panel (F1) with a glossary.
+- Interactive demonstration: the real planner on made-up paths held in memory, animated before and
+  after; it never reads or writes files.
+- Windows folder picker (the Explorer dialog with address bar and search) instead of the old tree, a
+  path box that accepts a pasted path, and drag and drop.
+- Pro settings, grouped by purpose: limit, safety margin, shorten names, shortest name, exclude and
+  never-rename wildcards, server prefix under Advanced; a marker when the rules no longer match the
+  plan; per-rename selection in the plan view; log, other sync issues, undo from another file,
+  environment check, copy as command line.
+- Logo, window and shortcut icon, and a social preview image.
 - Command line: `Invoke-PathShrink` with `-WhatIf` / `-Confirm`, and `Undo-PathShrink`.
 - Exported building blocks: library detection, inventory, plan, apply, sync issues, reports.
 - Reports in CSV, JSON and HTML under `%LOCALAPPDATA%\PathShrink\Reports`.
-- `undo.csv` written rename by rename, so an interrupted run can still be undone.
+- `undo.csv` written rename by rename (with the time of each), plus `run.json`, so an interrupted
+  run can still be reverted. Reverting checks every item first and never overwrites: items moved,
+  renamed again, replaced or deleted since are skipped and listed; the outcome goes to `restore.csv`.
+- The HTML report shows each long path before and after, with the changed names highlighted.
 - Detection of other sync blockers: reserved names, `_vti_`, `~$`, leading or trailing spaces, names over 255.
 - `install.ps1` (per user, SHA-256 checked, Start menu shortcut, `-Uninstall`).
 - Pester tests, GUI smoke test through UI Automation, static checks, GitHub Actions.
