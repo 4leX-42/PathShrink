@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- New logo: the Windows logo (a Microsoft trademark) is replaced by a folder with two inward chevrons.
+  Window, shortcut icon, social preview and screenshots are regenerated.
+
 ## [1.0.0] - 2026-10-24
 
 First public release. The renaming rules come from a support script used on real
