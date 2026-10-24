@@ -1,0 +1,15 @@
+name: Feature request
+description: A problem PathShrink could solve better
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: The situation you ran into. Real cases help more than ideas.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help

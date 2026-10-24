@@ -1,0 +1,34 @@
+name: Bug report
+description: Something did not work as described
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Please replace real client, colleague or company names in paths before posting.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got. Error text if any.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options: [Window - Basic mode, Window - Pro mode, Command line, Installer]
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Get-PathShrinkEnvironment output
+      description: In the window, Pro mode, Check this computer (copied from the Log). Or run Get-PathShrinkEnvironment.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: library
+    attributes:
+      label: Library type
+      description: Personal OneDrive, synced SharePoint library, shortcut added to OneDrive, copied folder with -Root...
