@@ -166,12 +166,12 @@ try {
     Press 'Back'
     Press 'See how it works' 10
     Check ([bool](Find 'Made-up example, your files are not touched' 5)) 'demo opens'
-    Choose (Find '3 · Shorten names' 5)
+    Choose (FindLike '3 ? Shorten names' 5)
     Check ([bool](FindLike 'Not needed, the path already fits*' 5)) 'demo says when shortening names is not needed'
     Choose (Find 'Engineering project' 5)
-    Choose (Find '2 · Join words' 5)
+    Choose (FindLike '2 ? Join words' 5)
     Check ([bool](FindLike 'There are no spaces between words here*' 5)) 'demo says when a step changes nothing'
-    Choose (Find '3 · Shorten names' 5)
+    Choose (FindLike '3 ? Shorten names' 5)
     Check ([bool](FindLike '*fits with margin' 5)) 'demo shows the result of shortening names'
     Check (((Get-Tree) -join '|') -eq ($original -join '|')) 'demo did not touch the disk'
 } finally {
