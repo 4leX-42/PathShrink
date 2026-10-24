@@ -19,9 +19,14 @@ OneDrive incidents; this version turns it into a module with a window, tests and
   it serves and how much they shrink, what else it affects; Back and Summary keep the selection.
 - Applied changes: a history of the runs that renamed something, each checked on disk before it can be
   reverted (`Test-PathShrinkUndo`, `Get-PathShrinkHistory`).
-- Contextual help: a `?` next to each option and term, and a help panel (F1) with a glossary.
-- Interactive demonstration: the real planner on made-up paths held in memory, animated before and
-  after; it never reads or writes files.
+- Names typed by hand: *Edit names* on a before/after card or in the plan, checked as you type
+  (characters Windows refuses, reserved names, names in use, file extension, only shorter), with the
+  path length updated live (`Test-PathShrinkRename`, `Set-PathShrinkRename`).
+- Contextual help: a `?` next to each option with a one-line answer, and a help panel (F1) with the
+  full explanation and a glossary.
+- Interactive demonstration, step by step (clean up spaces, join words, shorten names): the real
+  planner on made-up paths held in memory, showing what each step removes and when a step is not
+  needed; it never reads or writes files.
 - Windows folder picker (the Explorer dialog with address bar and search) instead of the old tree, a
   path box that accepts a pasted path, and drag and drop.
 - Pro settings, grouped by purpose: limit, safety margin, shorten names, shortest name, exclude and

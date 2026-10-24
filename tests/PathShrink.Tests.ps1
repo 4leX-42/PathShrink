@@ -317,6 +317,59 @@ Describe 'Apply, verify and undo' {
     }
 }
 
+Describe 'Names typed by hand' {
+    BeforeAll {
+        $root = New-TestRoot; New-TestTree $root ((Get-DeepFiles) + @('Desktop\Clients and Matters\Taken'))
+        $lib = Get-PathShrinkLibrary -Root $root -Upn $TestUpn
+        $inv = Get-PathShrinkInventory -Library $lib
+    }
+    AfterAll { Remove-TestRoot $root; Remove-TestRoot "$root-reports" }
+    BeforeEach { $plan = New-PathShrinkPlan -Inventory $inv -Limit 260 -Margin 0 -AllowTrim }
+
+    It 'replaces a planned name and recomputes the lengths' {
+        $r = $plan.Renames | Where-Object Type -eq 'Folder' | Sort-Object Depth | Select-Object -Last 1
+        $before = ($plan.Paths | Measure-Object After -Sum).Sum
+        [void](Set-PathShrinkRename -Plan $plan -Rel $r.Rel -NewName 'Q3')
+        $x = $plan.Renames | Where-Object Rel -eq $r.Rel
+        $x.NewName | Should -Be 'Q3'
+        $x.Method | Should -Be 'manual'
+        ($plan.Paths | Measure-Object After -Sum).Sum | Should -BeLessThan $before
+    }
+    It 'adds a rename for a folder the plan left alone' {
+        $rel = 'Desktop\Clients and Matters'
+        if ($plan.Renames | Where-Object Rel -eq $rel) { [void](Set-PathShrinkRename -Plan $plan -Rel $rel -NewName 'Clients and Matters') }
+        @($plan.Renames | Where-Object Rel -eq $rel).Count | Should -Be 0
+        [void](Set-PathShrinkRename -Plan $plan -Rel $rel -NewName 'Clients')
+        $x = $plan.Renames | Where-Object Rel -eq $rel
+        $x.NewName | Should -Be 'Clients'
+        $x.Affects | Should -BeGreaterThan 1
+    }
+    It 'rejects names Windows or OneDrive refuse, and names in use' {
+        $rel = 'Desktop\Clients and Matters'
+        (Test-PathShrinkRename -Plan $plan -Rel $rel -NewName 'a:b').Code | Should -Be 'BadChar'
+        (Test-PathShrinkRename -Plan $plan -Rel $rel -NewName 'Clients.').Code | Should -Be 'Trailing'
+        (Test-PathShrinkRename -Plan $plan -Rel $rel -NewName 'CON').Code | Should -Be 'Reserved'
+        (Test-PathShrinkRename -Plan $plan -Rel $rel -NewName '').Code | Should -Be 'Empty'
+        (Test-PathShrinkRename -Plan $plan -Rel $rel -NewName 'Clients and Matters and more').Code | Should -Be 'Longer'
+        (Test-PathShrinkRename -Plan $plan -Rel 'Desktop\Clients and Matters\Contoso Holdings   International , Limited' -NewName 'Taken').Code | Should -Be 'InUse'
+        (Test-PathShrinkRename -Plan $plan -Rel 'Desktop' -NewName 'Desk').Code | Should -Be 'Protected'
+        { Set-PathShrinkRename -Plan $plan -Rel $rel -NewName 'a:b' } | Should -Throw
+    }
+    It 'keeps the extension of a file' {
+        $f = ($inv.Items | Where-Object { -not $_.IsFolder -and $_.Name -like 'Final report*' }).Rel
+        (Test-PathShrinkRename -Plan $plan -Rel $f -NewName 'Final.pdf').Code | Should -Be 'Extension'
+        Test-PathShrinkRename -Plan $plan -Rel $f -NewName 'Final.docx' | Should -BeNullOrEmpty
+    }
+    It 'applies the names typed by hand on disk' {
+        $r = $plan.Renames | Where-Object Type -eq 'Folder' | Sort-Object Depth | Select-Object -Last 1
+        [void](Set-PathShrinkRename -Plan $plan -Rel $r.Rel -NewName 'Q3')
+        $res = Invoke-PathShrinkPlan -Plan $plan -ReportFolder "$root-reports\run" -Confirm:$false
+        $res.Failed | Should -Be 0
+        @(Import-Csv $res.UndoFile | Where-Object NewName -eq 'Q3').Count | Should -Be 1
+        [void](Undo-PathShrink -UndoFile $res.UndoFile -Confirm:$false)
+    }
+}
+
 Describe 'Sync issues' {
     It 'flags reserved and lock names' {
         $inv = New-Object psobject -Property @{ Items = @(

@@ -844,6 +844,7 @@
                       <CheckBox Style="{StaticResource Check}" Tag="sel" IsChecked="{Binding Selected, Mode=OneWay}" Visibility="{Binding CheckVisibility}" Margin="0,2,16,0" VerticalAlignment="Top" ToolTip="{{plan.include}}" AutomationProperties.Name="{{plan.include}}"/>
                       <StackPanel Grid.Column="1">
                         <DockPanel>
+                          <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Tag="edit" Content="{{plan.edit}}" Visibility="{Binding EditVisibility}" Margin="18,0,0,0" FontSize="13.5"/>
                           <TextBlock DockPanel.Dock="Right" Text="{Binding SavedText}" Foreground="{StaticResource GoldHi}" FontFamily="Segoe UI Semibold" FontSize="14" Margin="16,0,0,0"/>
                           <TextBlock TextWrapping="Wrap">
                             <Run Text="{Binding OpTitle, Mode=OneWay}" FontFamily="Segoe UI Semibold" FontSize="15"/><Run Text="    "/><Run Text="{Binding MethodText, Mode=OneWay}" Foreground="{StaticResource Text2}" FontSize="13.5"/>
@@ -1018,24 +1019,27 @@
                 <RadioButton x:Name="DemoEx2" Style="{StaticResource TabHeader}" GroupName="DemoEx" Content="{{demo.ex2}}"/>
                 <RadioButton x:Name="DemoEx3" Style="{StaticResource TabHeader}" GroupName="DemoEx" Content="{{demo.ex3}}"/>
               </StackPanel>
-              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                <CheckBox x:Name="DemoTrim" Style="{StaticResource Check}" Content="{{demo.trim}}" VerticalAlignment="Center"/>
-                <Button Style="{StaticResource HelpDot}" Tag="trim"/>
-              </StackPanel>
+
             </Grid>
             <Border Grid.Row="3" Style="{StaticResource Card}" Padding="22,16" Margin="0,0,0,14">
               <StackPanel>
                 <Grid>
                   <StackPanel Orientation="Horizontal">
-                    <RadioButton x:Name="DemoBefore" Style="{StaticResource FilterToggle}" GroupName="DemoState" IsChecked="True" Content="{{demo.before}}"/>
-                    <RadioButton x:Name="DemoAfter" Style="{StaticResource FilterToggle}" GroupName="DemoState" Content="{{demo.after}}"/>
-                    <Button x:Name="BtnDemoPlay" Style="{StaticResource LinkButton}" Margin="14,0,0,0">
-                      <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE768;" FontSize="12" Margin="0,0,8,0"/><TextBlock Text="{{demo.play}}"/></StackPanel>
-                    </Button>
+                    <RadioButton x:Name="DemoS0" Style="{StaticResource FilterToggle}" GroupName="DemoStep" IsChecked="True" Content="{{demo.s0}}"/>
+                    <RadioButton x:Name="DemoS1" Style="{StaticResource FilterToggle}" GroupName="DemoStep" Content="{{demo.s1}}"/>
+                    <RadioButton x:Name="DemoS2" Style="{StaticResource FilterToggle}" GroupName="DemoStep" Content="{{demo.s2}}"/>
+                    <RadioButton x:Name="DemoS3" Style="{StaticResource FilterToggle}" GroupName="DemoStep" Content="{{demo.s3}}"/>
+                    <Button Style="{StaticResource HelpDot}" Tag="trim"/>
                   </StackPanel>
-                  <TextBlock x:Name="DemoLen" HorizontalAlignment="Right" VerticalAlignment="Center" FontFamily="Segoe UI Semibold" FontSize="17"/>
+                  <Button x:Name="BtnDemoPlay" Style="{StaticResource LinkButton}" HorizontalAlignment="Right">
+                    <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE768;" FontSize="12" Margin="0,0,8,0"/><TextBlock Text="{{demo.play}}"/></StackPanel>
+                  </Button>
                 </Grid>
-                <Grid x:Name="DemoRuler" Height="34" Margin="0,16,0,0" ClipToBounds="True">
+                <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                  <TextBlock x:Name="DemoLen" FontFamily="Segoe UI Semibold" FontSize="17" VerticalAlignment="Center"/>
+                  <TextBlock x:Name="DemoStepInfo" Foreground="{StaticResource Text2}" FontSize="14" Margin="16,2,0,0" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </StackPanel>
+                <Grid x:Name="DemoRuler" Height="34" Margin="0,12,0,0" ClipToBounds="True">
                   <StackPanel x:Name="DemoBar" Orientation="Horizontal" HorizontalAlignment="Left"/>
                   <Rectangle x:Name="DemoTargetLine" Width="1.5" HorizontalAlignment="Left" Fill="{StaticResource Gold}"/>
                   <Rectangle x:Name="DemoLimitLine" Width="2" HorizontalAlignment="Left" Fill="{StaticResource Bad}"/>

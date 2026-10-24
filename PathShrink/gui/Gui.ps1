@@ -189,11 +189,11 @@ function Show-PathShrinkWindow {
             'PanelDone', 'DoneIcon', 'DoneTitle', 'DoneText', 'DoneRenamed', 'DoneVerified', 'DoneStill', 'DoneFailed', 'RevertCard', 'RevertText', 'BtnUndo', 'BtnReports', 'BtnAgain',
             'PanelHistory', 'BtnHistBack', 'HistList', 'HistEmpty', 'HistDetail', 'HistPick', 'HistWhen', 'HistFolder', 'HistMeta', 'HistCheckText', 'HistCounts',
             'HistReady', 'HistAlready', 'HistBlocked', 'HistBlockedList', 'BtnHistRevert', 'BtnHistCheck', 'BtnHistReport', 'BtnUndoFile', 'BtnOpenReports',
-            'PanelDemo', 'BtnDemoBack', 'DemoEx1', 'DemoEx2', 'DemoEx3', 'DemoTrim', 'DemoBefore', 'DemoAfter', 'BtnDemoPlay', 'DemoLen', 'DemoRuler', 'DemoBar',
+            'PanelDemo', 'BtnDemoBack', 'DemoEx1', 'DemoEx2', 'DemoEx3', 'DemoS0', 'DemoS1', 'DemoS2', 'DemoS3', 'DemoStepInfo', 'BtnDemoPlay', 'DemoLen', 'DemoRuler', 'DemoBar',
             'DemoTargetLine', 'DemoLimitLine', 'DemoTargetLabel', 'DemoLimitLabel', 'DemoTree', 'DemoExplain',
             'RulesChip', 'RulesState', 'OptLimit', 'OptMargin', 'OptTrim', 'MinNameRow', 'OptMinName', 'OptExclude', 'OptProtect', 'OptPrefix', 'RulesDirty', 'BtnReplan', 'BtnEnv', 'BtnCopyCli',
             'StatusText', 'StatusRight', 'HelpLayer', 'HelpScrim', 'HelpDrawer', 'BtnHelpClose', 'HelpList', 'HelpPop', 'HelpPopTitle', 'HelpPopBody', 'HelpPopMore',
-            'Overlay', 'DlgTitle', 'DlgBody', 'DlgNo', 'DlgYes')) {
+            'Overlay', 'DialogBox', 'DlgTitle', 'DlgBody', 'DlgNo', 'DlgYes')) {
         $ui[$n] = $win.FindName($n)
     }
     $state = @{
@@ -202,7 +202,7 @@ function Show-PathShrinkWindow {
         Manual = $null; NoAnim = [bool]$Screenshot; Relaunch = $null; Loading = $true
         View = 'PanelStart'; Back = $null; Page = 0; CompareItems = @(); RenameMap = @{}; PlanItems = @()
         History = @(); HistRun = $null; Check = $null; PickAfterHistory = $null; HelpEntries = @{}; HelpKey = $null; HelpFocus = $null
-        DemoPlan = $null; DemoShowAfter = $false; SettingPath = $false; Sorted = @(); SortedFor = $null; RenameMapFor = $null; PlanItemsFor = $null
+        Demo = $null; Editor = $null; PlayStep = 0; SettingPath = $false; Sorted = @(); SortedFor = $null; RenameMapFor = $null; PlanItemsFor = $null
     }
     $brush = { param($hex) $c = New-Object Windows.Media.BrushConverter; $b = $c.ConvertFromString($hex); $b.Freeze(); $b }
     $gold = & $brush '#C9A96E'; $goldHi = & $brush '#E2C48A'; $text2 = & $brush '#B4B4BA'; $text3 = & $brush '#8C8C94'; $lineBrush = & $brush '#303036'
@@ -346,9 +346,9 @@ function Show-PathShrinkWindow {
     function Get-ErrorText([string]$Message) {
         # Core messages are English; the common ones get the window language.
         if ($Message -match '^No OneDrive') { return (T 'err.noOneDrive') }
-        if ($Message -match 'not inside OneDrive') { return ((T 'err.notInside') + ' ' + ($Message -replace '^.*?: ', '' -replace '\. Use -Root.*$', '')) }
+        if ($Message -match 'not inside OneDrive') { return ((T 'err.notInside') + ': ' + ($Message -replace '^.*?: ', '' -replace '\. Use -Root.*$', '')) }
         if ($Message -match 'Cannot find path|does not exist') { return (T 'err.noFolder') }
-        $Message
+        $Message.Trim().TrimEnd('.')
     }
     function Get-Translated([string]$Prefix, [string]$Value, [string]$Separator, [string]$Join = $Separator) {
         @($Value -split [regex]::Escape($Separator) | ForEach-Object { T ($Prefix + $_) }) -join $Join
@@ -359,11 +359,13 @@ function Show-PathShrinkWindow {
         $t
     }
     function Show-Dialog {
-        param([string]$Title, [object[]]$Lines, [string]$Yes, [string]$No = '', [scriptblock]$OnYes)
+        param([string]$Title, [object[]]$Lines, [string]$Yes, [string]$No = '', [scriptblock]$OnYes, [int]$Width = 680)
         if (-not $Yes) { $Yes = T 'dlg.ok' }
         $ui.DlgTitle.Text = $Title
+        $ui.DialogBox.MaxWidth = $Width
         $ui.DlgBody.Children.Clear()
         foreach ($l in $Lines) {
+            if ($l -is [Windows.UIElement]) { [void]$ui.DlgBody.Children.Add($l); continue }
             $tb = New-Text '' 14 $textBrush 'Segoe UI' '0,0,0,10'
             $tb.LineHeight = 21
             if ($l -is [hashtable]) { $tb.Text = $l['Text']; if ($l['Color']) { $tb.Foreground = $l['Color'] }; if ($l['Mono']) { $tb.FontFamily = 'Consolas'; $tb.FontSize = 13 }; if ($l['Bold']) { $tb.FontFamily = 'Segoe UI Semibold' } }
@@ -611,7 +613,7 @@ function Show-PathShrinkWindow {
             elseif ($left) { $msg += T 'explain.tooDeep' $left }
         }
         if ($sum.Unreadable) { $msg += T 'explain.unreadable' $sum.Unreadable }
-        $ui.ExplainText.Text = $msg -join ' '
+        $ui.ExplainText.Text = $msg -join "`n"
         $ui.TrimOfferRow.Visibility = $(if ($left -and -not $p.AllowTrim) { 'Visible' } else { 'Collapsed' })
 
         if ($state.RenameMapFor -ne $p) {
@@ -725,6 +727,12 @@ function Show-PathShrinkWindow {
         $head = New-Object Windows.Controls.DockPanel
         $len = New-Text (T 'cmp.lengths' $P.Before $P.After ($P.Before - $P.After)) 14 $goldHi 'Segoe UI Semibold'
         $len.TextWrapping = 'NoWrap'
+        if (Test-CanEdit) {
+            $eb = New-Object Windows.Controls.Button
+            $eb.Style = $win.FindResource('LinkButton'); $eb.Content = T 'cmp.edit'; $eb.Tag = $P.Rel; $eb.Margin = '18,0,0,0'; $eb.FontSize = 13.5
+            $eb.Add_Click({ param($s, $e) Show-NameEditor ([string]$s.Tag) })
+            [Windows.Controls.DockPanel]::SetDock($eb, 'Right'); [void]$head.Children.Add($eb)
+        }
         [Windows.Controls.DockPanel]::SetDock($len, 'Right'); [void]$head.Children.Add($len)
         $chip = New-Object Windows.Controls.Border
         $chip.BorderBrush = $color; $chip.BorderThickness = '1'; $chip.Padding = '9,2'; $chip.Margin = '0,0,12,0'; $chip.VerticalAlignment = 'Center'
@@ -835,6 +843,80 @@ function Show-PathShrinkWindow {
         }
     }
 
+    # ---------------------------------------------------------------- names typed by hand
+    function Test-CanEdit { [bool]$ui.ModePro.IsChecked -or ($state.Plan -and $state.Plan.AllowTrim) }
+    function Show-NameEditor([string]$Rel) {
+        $p = $state.Plan
+        if (-not $p -or -not $Rel) { return }
+        $seg = $Rel.Split('\')
+        $planned = @{}; foreach ($r in $p.Renames) { if ($r.Selected) { $planned[$r.Rel] = $r.NewName } }
+        $panel = New-Object Windows.Controls.StackPanel
+        [void]$panel.Children.Add((New-Text (T 'edit.intro') 14 $text2 'Segoe UI' '0,0,0,14'))
+        $lenText = New-Text '' 16 $textBrush 'Segoe UI Semibold' '0,0,0,12'
+        [void]$panel.Children.Add($lenText)
+        $rows = @(); $rel = ''
+        for ($k = 0; $k -lt $seg.Count; $k++) {
+            $rel = $(if ($k) { $rel + '\' + $seg[$k] } else { $seg[$k] })
+            $cur = $(if ($planned.ContainsKey($rel)) { $planned[$rel] } else { $seg[$k] })
+            $g = New-Object Windows.Controls.Grid
+            $g.Margin = '0,0,0,8'
+            foreach ($w in 150, -1, 56) { $c = New-Object Windows.Controls.ColumnDefinition; $c.Width = $(if ($w -lt 0) { New-Object Windows.GridLength 1, 'Star' } else { New-Object Windows.GridLength $w }); $g.ColumnDefinitions.Add($c) }
+            $lbl = New-Text $(if ($k -eq $seg.Count - 1 -and @($p.Paths | Where-Object { $_.Rel -eq $Rel -and $_.Type -eq 'File' }).Count) { T 'edit.file' } else { T 'edit.level' ($k + 1) }) 13 $text2 'Segoe UI' '0,8,10,0'
+            [void]$g.Children.Add($lbl)
+            $sp = New-Object Windows.Controls.StackPanel
+            [Windows.Controls.Grid]::SetColumn($sp, 1)
+            $tb = New-Object Windows.Controls.TextBox
+            $tb.Style = $win.FindResource('Field'); $tb.Text = $cur; $tb.FontFamily = 'Consolas'; $tb.FontSize = 13.5
+            [Windows.Automation.AutomationProperties]::SetName($tb, (T 'edit.level' ($k + 1)))
+            $locked = $k -lt $p.Library.MinRenameDepth
+            if ($locked) { $tb.IsReadOnly = $true; $tb.IsEnabled = $false; $tb.ToolTip = T 'edit.protected' }
+            [void]$sp.Children.Add($tb)
+            if ($cur -cne $seg[$k]) { [void]$sp.Children.Add((New-Text (T 'edit.original' $seg[$k]) 12 $text3 'Segoe UI' '2,3,0,0')) }
+            elseif ($locked) { [void]$sp.Children.Add((New-Text (T 'edit.protected') 12 $text3 'Segoe UI' '2,3,0,0')) }
+            [void]$g.Children.Add($sp)
+            $cnt = New-Text '' 13 $text2 'Segoe UI' '10,8,0,0'
+            $cnt.TextAlignment = 'Right'
+            [Windows.Controls.Grid]::SetColumn($cnt, 2); [void]$g.Children.Add($cnt)
+            [void]$panel.Children.Add($g)
+            $rows += [pscustomobject]@{ Rel = $rel; Original = $seg[$k]; Current = $cur; Box = $tb; Count = $cnt; Locked = $locked; Label = $lbl.Text }
+            $tb.Add_TextChanged({ Update-NameEditor })
+        }
+        $msg = New-Text '' 13.5 $badBrush 'Segoe UI' '0,8,0,0'
+        [void]$panel.Children.Add($msg)
+        $sv = New-Object Windows.Controls.ScrollViewer
+        $sv.VerticalScrollBarVisibility = 'Auto'; $sv.MaxHeight = [Math]::Max(240, $win.ActualHeight - 300); $sv.Content = $panel
+        $state.Editor = @{ Rows = $rows; Len = $lenText; Msg = $msg }
+        Update-NameEditor
+        Show-Dialog -Title (T 'edit.title') -Lines @($sv) -Yes (T 'edit.save') -No (T 'dlg.cancel') -Width 940 -OnYes { Save-NameEditor }
+    }
+    function Update-NameEditor {
+        $ed = $state.Editor; $p = $state.Plan
+        $len = $p.Library.Prefix.Length + $ed.Rows.Count - 1
+        foreach ($r in $ed.Rows) { $len += $r.Box.Text.Length; $r.Count.Text = [string]$r.Box.Text.Length }
+        $ed.Len.Text = T 'edit.len' $len $p.Target $p.Limit
+        $ed.Len.Foreground = $(if ($len -gt $p.Limit) { $badBrush } elseif ($len -gt $p.Target) { $warnBrush } else { $okBrush })
+        $ed.Msg.Text = ''
+    }
+    function Save-NameEditor {
+        $ed = $state.Editor; $p = $state.Plan
+        $changes = @($ed.Rows | Where-Object { -not $_.Locked -and $_.Box.Text -cne $_.Current })
+        $errors = @(foreach ($c in $changes) {
+            $e = Test-PathShrinkRename -Plan $p -Rel $c.Rel -NewName $c.Box.Text
+            if ($e) { T 'edit.errLine' $c.Label (T ('edit.err.' + $e.Code) $e.Detail) }
+        })
+        if ($errors.Count) { $ed.Msg.Text = $errors -join "`n"; return $false }
+        foreach ($c in $changes) { [void](Set-PathShrinkRename -Plan $p -Rel $c.Rel -NewName $c.Box.Text); Add-Log ('Name typed by hand: {0} -> {1}' -f $c.Rel, $c.Box.Text) }
+        if ($changes.Count) {
+            $state.RenameMapFor = $null; $state.PlanItemsFor = $null; $state.SortedFor = $null
+            $page = $state.Page
+            Update-Results
+            $state.Page = $page; Update-Compare
+            if ($state.View -eq 'PanelPlan') { Update-PlanItems; Update-PlanList }
+            Set-Status (T 'status.edited' $changes.Count)
+        }
+        $true
+    }
+
     # ---------------------------------------------------------------- plan view
     function Update-PlanItems {
         # One row per rename: which long paths it serves and the longest of them. Rows are made
@@ -854,7 +936,7 @@ function Show-PathShrinkWindow {
                     SavedText = [string]::Format($culture, $tSaved, $r.Saved)
                     ParentText = $(if ($r.Parent) { $p.Library.Base + '\' + $r.Parent } else { $p.Library.Base })
                     ImpactText = $(if ($r.Type -eq 'Folder') { [string]::Format($culture, $tImpF, [Math]::Max(0, $r.Affects - 1)) } else { $tImpFile })
-                    WhyText = ''; PathsHeader = ''; Hits = $null; CheckVisibility = $pro
+                    WhyText = ''; PathsHeader = ''; Hits = $null; CheckVisibility = $pro; EditRel = $r.Rel; EditVisibility = 'Collapsed'
                 })
             }
             $state.PlanItems = $rows.ToArray(); $state.PlanItemsFor = $p
@@ -873,6 +955,8 @@ function Show-PathShrinkWindow {
             if ($list) { $n = $list.Count; foreach ($x in $list) { if ($null -eq $worst -or $x.Before -gt $worst.Before) { $worst = $x } } }
             $w.Selected = $w.Rename.Selected
             $w.Hits = $list
+            $w.EditRel = $(if ($worst) { $worst.Rel } else { $w.Rel })
+            $w.EditVisibility = $(if (Test-CanEdit) { 'Visible' } else { 'Collapsed' })
             $w.WhyText = $(if ($worst) { [string]::Format($culture, $tWhy, $n, $worst.Before, $worst.After, $p.Target) } else { $tNone })
             $w.PathsHeader = [string]::Format($culture, $tPaths, $n)
         }
@@ -1075,31 +1159,54 @@ function Show-PathShrinkWindow {
 
     # ---------------------------------------------------------------- demo
     function Update-Demo {
+        # The planner with shortening allowed, on a made-up path in memory. The names at each step
+        # come from the methods the planner used, so every step shows what really happens.
         $ex = $(if ($ui.DemoEx2.IsChecked) { 2 } elseif ($ui.DemoEx3.IsChecked) { 3 } else { 1 })
-        $state.DemoPlan = New-PathShrinkDemoPlan (T "demo.ex$ex.path") ([bool]$ui.DemoTrim.IsChecked)
-        $state.DemoShowAfter = [bool]$ui.DemoAfter.IsChecked
+        $plan = New-PathShrinkDemoPlan (T "demo.ex$ex.path") $true
+        $p = $plan.Paths | Sort-Object { $_.Rel.Length } -Descending | Select-Object -First 1
+        $map = @{}; foreach ($r in $plan.Renames) { $map[$r.Rel] = $r }
+        $a = $p.Rel.Split('\'); $levels = @(); $rel = ''
+        for ($k = 0; $k -lt $a.Count; $k++) {
+            $rel = $(if ($k) { $rel + '\' + $a[$k] } else { $a[$k] })
+            $n = @($a[$k], $a[$k], $a[$k], $a[$k]); $r = $map[$rel]
+            if ($r) {
+                $ext = ''; $stem = $a[$k]
+                if ($k -eq $a.Count - 1) { $ext = [IO.Path]::GetExtension($stem); $stem = $stem.Substring(0, $stem.Length - $ext.Length) }
+                if ($r.Method -like '*clean-up*') { $stem = Get-CleanName $stem }
+                $n[1] = $stem + $ext
+                if ($r.Method -like '*no spaces*') { $stem = Get-JoinedName $stem }
+                $n[2] = $stem + $ext; $n[3] = $r.NewName
+            }
+            $levels += [pscustomobject]@{ Names = $n; IsFile = ($k -eq $a.Count - 1); Locked = ($k -lt $plan.Library.MinRenameDepth) }
+        }
+        $len = @(foreach ($i in 0..3) { $t = $plan.Library.Prefix.Length + $levels.Count - 1; foreach ($l in $levels) { $t += $l.Names[$i].Length }; $t })
+        $state.Demo = [pscustomobject]@{ Plan = $plan; Levels = $levels; Length = $len }
+        $txt = @(T 'demo.sum.start' $len[0] $plan.Limit $plan.Library.Prefix.Length)
+        $txt += $(if ($len[0] -gt $len[1]) { T 'demo.sum.1' ($len[0] - $len[1]) } else { T 'demo.sum.1none' })
+        $txt += $(if ($len[1] -gt $len[2]) { T 'demo.sum.2' ($len[1] - $len[2]) } else { T 'demo.sum.2none' })
+        if ($len[2] -le $plan.Target) { $txt += T 'demo.sum.fit' $len[2] }
+        else { $txt += T 'demo.sum.noFit' $len[2]; $txt += T 'demo.sum.3' ($len[2] - $len[3]) $len[3] }
+        $ui.DemoExplain.Text = $txt -join "`n`n"
         Update-DemoView $false
     }
+    function Get-DemoStep { if ($ui.DemoS1.IsChecked) { 1 } elseif ($ui.DemoS2.IsChecked) { 2 } elseif ($ui.DemoS3.IsChecked) { 3 } else { 0 } }
     function Update-DemoView([bool]$Animate) {
-        $plan = $state.DemoPlan
-        if (-not $plan -or -not $plan.Paths.Count) { return }
-        $p = $plan.Paths | Sort-Object { $_.Rel.Length } -Descending | Select-Object -First 1
-        $after = $state.DemoShowAfter
-        $map = @{}; foreach ($r in $plan.Renames) { $map[$r.Rel] = $r }
-        $a = $p.Rel.Split('\'); $b = $p.NewRel.Split('\')
-        $prefix = $plan.Library.Prefix
-        $len = $(if ($after) { $p.After } else { $p.Before })
+        $d = $state.Demo
+        if (-not $d) { return }
+        $plan = $d.Plan; $st = Get-DemoStep; $len = $d.Length[$st]
         $ui.DemoLen.Text = T 'demo.len' $len $(if ($len -gt $plan.Limit) { T 'demo.len.over' } elseif ($len -gt $plan.Target) { T 'demo.len.near' } else { T 'demo.len.ok' })
         $ui.DemoLen.Foreground = $(if ($len -gt $plan.Limit) { $badBrush } elseif ($len -gt $plan.Target) { $warnBrush } else { $okBrush })
+        $gain = $(if ($st) { $d.Length[$st - 1] - $len } else { 0 })
+        $ui.DemoStepInfo.Text = $(if (-not $st) { T 'demo.info.0' } elseif ($gain) { T "demo.info.$st" $gain } else { T "demo.info.${st}none" })
 
         # Ruler: one block per level, as wide as its characters (separator included).
         $width = $ui.DemoRuler.ActualWidth
         if ($width -lt 100) { $width = 760 }
         $scale = $width / 480
-        $blocks = @(@{ Chars = $prefix.Length; Brush = '#3A3A44'; Changed = $false })
-        for ($k = 0; $k -lt $a.Count; $k++) {
-            $name = $(if ($after) { $b[$k] } else { $a[$k] })
-            $blocks += @{ Chars = $name.Length + $(if ($k -lt $a.Count - 1) { 1 } else { 0 }); Changed = ($a[$k] -cne $b[$k]) }
+        $blocks = @(@{ Chars = $plan.Library.Prefix.Length; Changed = $false })
+        for ($k = 0; $k -lt $d.Levels.Count; $k++) {
+            $nm = $d.Levels[$k].Names
+            $blocks += @{ Chars = $nm[$st].Length + $(if ($k -lt $d.Levels.Count - 1) { 1 } else { 0 }); Changed = ($nm[$st] -cne $nm[0]); Name = $nm[$st] }
         }
         if ($ui.DemoBar.Children.Count -ne $blocks.Count) {
             $ui.DemoBar.Children.Clear()
@@ -1108,11 +1215,11 @@ function Show-PathShrinkWindow {
         }
         for ($i = 0; $i -lt $blocks.Count; $i++) {
             $el = $ui.DemoBar.Children[$i]
-            $el.Background = $(if ($i -eq 0) { & $brush '#3A3A44' } elseif ($blocks[$i].Changed -and $after) { $gold } elseif ($blocks[$i].Changed) { & $brush '#8A6F45' } else { & $brush '#5A5A64' })
-            $el.ToolTip = $(if ($i -eq 0) { T 'cmp.prefixTip' $prefix.Length } else { $(if ($after) { $b[$i - 1] } else { $a[$i - 1] }) })
+            $el.Background = $(if ($i -eq 0) { & $brush '#3A3A44' } elseif ($blocks[$i].Changed) { $gold } else { & $brush '#5A5A64' })
+            $el.ToolTip = $(if ($i -eq 0) { T 'cmp.prefixTip' $plan.Library.Prefix.Length } else { $blocks[$i].Name })
             $w = [Math]::Max(2, $blocks[$i].Chars * $scale - 2)
             if ($Animate -and -not $state.NoAnim) {
-                $an = New-Object Windows.Media.Animation.DoubleAnimation($el.ActualWidth, $w, (New-Object Windows.Duration ([TimeSpan]::FromMilliseconds(650))))
+                $an = New-Object Windows.Media.Animation.DoubleAnimation($el.ActualWidth, $w, (New-Object Windows.Duration ([TimeSpan]::FromMilliseconds(600))))
                 $ease = New-Object Windows.Media.Animation.CubicEase; $ease.EasingMode = 'EaseInOut'; $an.EasingFunction = $ease
                 $el.BeginAnimation([Windows.FrameworkElement]::WidthProperty, $an)
             } else { $el.BeginAnimation([Windows.FrameworkElement]::WidthProperty, $null); $el.Width = $w }
@@ -1125,51 +1232,37 @@ function Show-PathShrinkWindow {
         $ui.DemoTargetLabel.Margin = New-Object Windows.Thickness ([Math]::Max(0, $plan.Target * $scale - 6 - 110)), 0, 0, 0
         $ui.DemoTargetLabel.Width = 110; $ui.DemoTargetLabel.TextAlignment = 'Right'
 
-        # Tree: every level of the path, old name and new name side by side.
+        # Tree: every level with its name at this step; what changed and how.
         $ui.DemoTree.Children.Clear()
-        $rel = ''
-        for ($k = 0; $k -lt $a.Count; $k++) {
-            $rel = $(if ($k) { $rel + '\' + $a[$k] } else { $a[$k] })
-            $isFile = $k -eq $a.Count - 1
+        $how = @('', 'method.clean-up', 'method.no spaces', 'method.trim')
+        for ($k = 0; $k -lt $d.Levels.Count; $k++) {
+            $lv = $d.Levels[$k]; $nm = $lv.Names
             $row = New-Object Windows.Controls.StackPanel
             $row.Margin = New-Object Windows.Thickness ($k * 18), 0, 0, 10
             $line = New-Text '' 14 $textBrush
-            $icon = New-Object Windows.Documents.Run $(if ($isFile) { [string][char]0xE8A5 } else { [string][char]0xE8B7 })
-            $icon.FontFamily = 'Segoe MDL2 Assets'; $icon.Foreground = $(if ($isFile) { $text2 } else { $gold })
+            $icon = New-Object Windows.Documents.Run $(if ($lv.IsFile) { [string][char]0xE8A5 } else { [string][char]0xE8B7 })
+            $icon.FontFamily = 'Segoe MDL2 Assets'; $icon.Foreground = $(if ($lv.IsFile) { $text2 } else { $gold })
             [void]$line.Inlines.Add($icon); [void]$line.Inlines.Add((New-Object Windows.Documents.Run '  '))
-            $changed = $a[$k] -cne $b[$k]
-            $nm = New-Object Windows.Documents.Run $(if ($after) { $b[$k] } else { $a[$k] })
-            if ($changed -and $after) { $nm.Foreground = $goldHi; $nm.Background = $afterMark }
-            elseif ($changed) { $nm.Foreground = $beforeText; $nm.Background = $beforeMark }
-            [void]$line.Inlines.Add($nm)
+            $run = New-Object Windows.Documents.Run $nm[$st]
+            if ($nm[$st] -cne $nm[0]) { $run.Foreground = $goldHi; $run.Background = $afterMark }
+            [void]$line.Inlines.Add($run)
             [void]$row.Children.Add($line)
             $sub = ''
-            if ($k -lt $plan.Library.MinRenameDepth) { $sub = T 'demo.protected' }
-            elseif ($changed) {
-                $r = $map[$rel]
-                $other = $(if ($after) { T 'demo.was' $a[$k] } else { T 'demo.becomes' $b[$k] })
-                $sub = $other + '   ' + (T 'cmp.how' (Get-Translated 'method.' $r.Method ' + ' '  /  ') $r.Saved)
+            if ($lv.Locked) { $sub = T 'demo.protected' }
+            elseif ($nm[$st] -cne $nm[0]) {
+                $steps = @(for ($i = 1; $i -le $st; $i++) { if ($nm[$i] -cne $nm[$i - 1]) { T $how[$i] } }) -join '  /  '
+                $sub = (T 'demo.was' $nm[0]) + '   ' + (T 'cmp.how' $steps ($nm[0].Length - $nm[$st].Length))
             }
             if ($sub) { [void]$row.Children.Add((New-Text $sub 12.5 $text2 'Segoe UI' '24,2,0,0')) }
             [void]$ui.DemoTree.Children.Add($row)
         }
-
-        $changedCount = @(for ($k = 0; $k -lt $a.Count; $k++) { if ($a[$k] -cne $b[$k]) { 1 } }).Count
-        $txt = @(T 'demo.explain.start' $p.Before $plan.Limit $prefix.Length)
-        if ($changedCount) { $txt += T 'demo.explain.changed' $changedCount $a.Count ($p.Before - $p.After) $p.After }
-        else { $txt += T 'demo.explain.nothing' }
-        if ($p.Status -eq 'TooLong' -and -not $plan.AllowTrim) { $txt += T 'demo.explain.needTrim' }
-        elseif ($plan.AllowTrim -and @($plan.Renames | Where-Object { $_.Method -like '*trim*' }).Count) { $txt += T 'demo.explain.trimmed' }
-        $ui.DemoExplain.Text = $txt -join "`n`n"
     }
     function Show-Demo {
         Show-View 'PanelDemo'
-        $ui.DemoBefore.IsChecked = $true
+        $ui.DemoS0.IsChecked = $true
         Update-Demo
         $win.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::Loaded, [Action] { Update-DemoView $false }) | Out-Null
     }
-
-    # ---------------------------------------------------------------- help
     function Show-Help([string]$Key) {
         $ui.HelpPop.IsOpen = $false
         if (-not $ui.HelpList.Children.Count) {
@@ -1210,7 +1303,7 @@ function Show-PathShrinkWindow {
         $k = [string]$Button.Tag
         $state.HelpKey = $k
         $ui.HelpPopTitle.Text = T "help.$k.t"
-        $ui.HelpPopBody.Text = T "help.$k.b"
+        $ui.HelpPopBody.Text = T "help.$k.s"
         $ui.HelpPop.PlacementTarget = $Button
         $ui.HelpPop.IsOpen = $true
     }
@@ -1240,7 +1333,8 @@ function Show-PathShrinkWindow {
         if ($IsPro -and $win.WindowState -eq 'Normal' -and $win.Width -lt 1180) { $win.Width = [Math]::Min(1240, [Windows.SystemParameters]::WorkArea.Width) }
         $v = $(if ($IsPro) { 'Visible' } else { 'Collapsed' })
         $ui.TabIssues.Visibility = $v; $ui.TabLog.Visibility = $v
-        foreach ($w in @($state.PlanItems)) { $w.CheckVisibility = $v }
+        foreach ($w in @($state.PlanItems)) { $w.CheckVisibility = $v; $w.EditVisibility = $(if ($IsPro -or ($state.Plan -and $state.Plan.AllowTrim)) { 'Visible' } else { 'Collapsed' }) }
+        if ($state.Plan -and $state.View -eq 'PanelResults') { Update-Compare }
         if ($state.View -eq 'PanelPlan') { $ui.PlanList.Items.Refresh(); Update-PlanSummary }
         if ($state.Library) { Set-Library $state.Library }
         Update-Tab
@@ -1351,6 +1445,7 @@ function Show-PathShrinkWindow {
     $ui.PlanList.AddHandler([Windows.Controls.Primitives.ButtonBase]::ClickEvent, [Windows.RoutedEventHandler] {
         param($s, $e)
         $cb = $e.OriginalSource
+        if ($cb -is [Windows.Controls.Button] -and $cb.Tag -eq 'edit') { Show-NameEditor ([string]$cb.DataContext.EditRel); return }
         if (-not ($cb -is [Windows.Controls.CheckBox]) -or $cb.Tag -ne 'sel') { return }
         $cb.DataContext.Rename.Selected = [bool]$cb.IsChecked
         [void](Update-PathShrinkPlan -Plan $state.Plan)
@@ -1366,9 +1461,10 @@ function Show-PathShrinkWindow {
     foreach ($o in 'OptLimit', 'OptMargin', 'OptMinName', 'OptExclude', 'OptProtect', 'OptPrefix') { $ui[$o].Add_TextChanged({ Update-RulesState }) }
     $ui.OptTrim.Add_Click({ Update-RulesState })
     $ui.DlgYes.Add_Click({
-        $ui.Overlay.Visibility = 'Collapsed'
-        $a = $state.DlgAction; $state.DlgAction = $null
-        if ($a) { & $a }
+        # An action that returns $false keeps the dialog open (for example a name that cannot be used).
+        $a = $state.DlgAction
+        if ($a -and (& $a) -eq $false) { return }
+        if ($state.DlgAction -eq $a) { $state.DlgAction = $null; $ui.Overlay.Visibility = 'Collapsed' }
     })
     $ui.DlgNo.Add_Click({
         $ui.Overlay.Visibility = 'Collapsed'; $state.DlgAction = $null
@@ -1408,17 +1504,16 @@ function Show-PathShrinkWindow {
     $ui.HelpScrim.Add_MouseLeftButtonDown({ $ui.HelpLayer.Visibility = 'Collapsed' })
     $ui.HelpPopMore.Add_Click({ Show-Help $state.HelpKey })
     $ui.BtnDemoBack.Add_Click({ Restore-View })
-    foreach ($x in 'DemoEx1', 'DemoEx2', 'DemoEx3') { $ui[$x].Add_Checked({ if ($state.View -eq 'PanelDemo') { $ui.DemoBefore.IsChecked = $true; Update-Demo } }) }
-    $ui.DemoTrim.Add_Click({ Update-Demo })
-    $ui.DemoBefore.Add_Checked({ if ($state.DemoPlan) { $state.DemoShowAfter = $false; Update-DemoView $true } })
-    $ui.DemoAfter.Add_Checked({ if ($state.DemoPlan) { $state.DemoShowAfter = $true; Update-DemoView $true } })
-    $ui.BtnDemoPlay.Add_Click({
-        $ui.DemoBefore.IsChecked = $true
-        $t = New-Object Windows.Threading.DispatcherTimer
-        $t.Interval = [TimeSpan]::FromMilliseconds(700)
-        $t.Add_Tick({ param($s, $e) $s.Stop(); $ui.DemoAfter.IsChecked = $true })
-        $t.Start()
+    foreach ($x in 'DemoEx1', 'DemoEx2', 'DemoEx3') { $ui[$x].Add_Checked({ if ($state.View -eq 'PanelDemo') { $ui.DemoS0.IsChecked = $true; Update-Demo } }) }
+    foreach ($x in 'DemoS0', 'DemoS1', 'DemoS2', 'DemoS3') { $ui[$x].Add_Checked({ if ($state.Demo) { Update-DemoView $true } }) }
+    $playTimer = New-Object Windows.Threading.DispatcherTimer
+    $playTimer.Interval = [TimeSpan]::FromMilliseconds(1100)
+    $playTimer.Add_Tick({
+        $state.PlayStep++
+        if ($state.PlayStep -gt 3 -or $state.View -ne 'PanelDemo') { $playTimer.Stop(); return }
+        $ui[('DemoS' + $state.PlayStep)].IsChecked = $true
     })
+    $ui.BtnDemoPlay.Add_Click({ $state.PlayStep = 0; $ui.DemoS0.IsChecked = $true; $playTimer.Stop(); $playTimer.Start() })
     $ui.DemoRuler.Add_SizeChanged({ if ($state.View -eq 'PanelDemo') { Update-DemoView $false } })
     $ui.BtnEnv.Add_Click({
         $envInfo = Get-PathShrinkEnvironment
@@ -1471,7 +1566,7 @@ function Show-PathShrinkWindow {
                     }
                 }
             }
-            if ($ScreenshotState -eq 'demo') { Show-Demo; $ui.DemoAfter.IsChecked = $true }
+            if ($ScreenshotState -eq 'demo') { Show-Demo; $ui.DemoEx2.IsChecked = $true; $ui.DemoS3.IsChecked = $true }
             if ($ScreenshotState -eq 'help') { Show-Help 'trim' }
             $win.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::Loaded, [Action] {
                 foreach ($b in (Get-Buttons $win)) { Set-CutShape $b }

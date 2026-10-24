@@ -100,9 +100,9 @@ try {
 
     Press 'Scan for long paths'
     $t1 = [DateTime]::Now
-    $apply = FindLike 'Apply * changes*' 60
+    $apply = FindLike 'Apply * changes' 60
     Check ([bool]$apply) ('scan finishes and shows the summary ({0:N1} s)' -f ([DateTime]::Now - $t1).TotalSeconds)
-    Check ([bool](Find 'Simulation: nothing has been changed yet' 3)) 'summary says nothing has changed yet'
+    Check ([bool](Find 'Simulation, nothing has been changed yet' 3)) 'summary says nothing has changed yet'
     Check ([bool](FindLike 'BEFORE' 3)) 'before and after comparison is shown'
     Check ([bool](Find 'Show a plan that also shortens folder names' 3)) 'offers shortening for paths that do not fit'
     Check (-not (Find 'Log' 1)) 'Pro tabs hidden in Basic mode'
@@ -111,7 +111,7 @@ try {
     Check ([bool](FindLike 'Rename folder*' 10)) 'plan view lists the operations'
     Check ([bool](FindLike 'Needed for * long paths*' 3)) 'each operation says why it is needed'
     Press 'Back'
-    Check ([bool](Find 'Simulation: nothing has been changed yet' 5)) 'Back returns to the summary'
+    Check ([bool](Find 'Simulation, nothing has been changed yet' 5)) 'Back returns to the summary'
 
     Press 'Help'
     Check ([bool](Find 'What PathShrink does' 5)) 'help opens'
@@ -123,9 +123,20 @@ try {
     Check ([bool](Find 'Limit' 3)) 'Pro mode shows the rules'
 
     Press 'Show a plan that also shortens folder names'
-    $apply = FindLike 'Apply * changes*' 60
+    $apply = FindLike 'Apply * changes' 60
     Check ([bool]$apply) 'shortening plan computed in the background'
     Check (-not (Find 'Show a plan that also shortens folder names' 2)) 'offer gone once shortening is on'
+
+    Press 'Edit names'
+    Check ([bool](Find 'Edit the names in this path' 5)) 'name editor opens from the comparison'
+    $box = @($script:win.FindAll('Descendants', (New-Object Windows.Automation.PropertyCondition($AE::ControlTypeProperty, [Windows.Automation.ControlType]::Edit))) | Where-Object { $_.Current.Name -eq 'Level 2' })[0]
+    Set-Text $box 'a:b'
+    Press 'Use these names'
+    Check ([bool](FindLike '*cannot contain*' 5)) 'editor refuses a name Windows does not allow and stays open'
+    Set-Text $box 'Act'
+    Press 'Use these names'
+    Check ([bool](FindLike '*edited by hand*' 10)) 'name typed by hand is used in the plan'
+    $apply = FindLike 'Apply * changes' 30
 
     Click $apply
     $go = FindLike 'Rename * items' 10
@@ -134,7 +145,7 @@ try {
     Click $go
     $revert = Find 'Revert changes' 60
     Check ([bool]$revert) 'apply finishes and offers to revert'
-    Check ([bool](FindLike '* items renamed. Checked on disk*' 3)) 'result is checked on disk'
+    Check ([bool](FindLike '* items renamed, checked on disk*' 3)) 'result is checked on disk'
     $changed = Get-Tree
     Check (($changed -join '|') -ne ($original -join '|')) 'folders were renamed on disk'
     $prefix = 'personal/ana_perez_contoso_com/Documents/'.Length
@@ -154,13 +165,14 @@ try {
 
     Press 'Back'
     Press 'See how it works' 10
-    Check ([bool](Find 'Made-up example: your files are not touched' 5)) 'demo opens'
-    $after = Find 'After' 5
-    if (-not $after) { throw 'Demo After toggle not found' }
-    Choose $after
-    Check ([bool](FindLike '* characters  /  fits with margin' 5)) 'demo shows the result of the real planner'
+    Check ([bool](Find 'Made-up example, your files are not touched' 5)) 'demo opens'
+    Choose (Find '3 · Shorten names' 5)
+    Check ([bool](FindLike 'Not needed, the path already fits*' 5)) 'demo says when shortening names is not needed'
     Choose (Find 'Engineering project' 5)
-    Check ([bool](FindLike '*It only fits if letters are removed*' 5)) 'demo explains when shortening is needed'
+    Choose (Find '2 · Join words' 5)
+    Check ([bool](FindLike 'There are no spaces between words here*' 5)) 'demo says when a step changes nothing'
+    Choose (Find '3 · Shorten names' 5)
+    Check ([bool](FindLike '*fits with margin' 5)) 'demo shows the result of shortening names'
     Check (((Get-Tree) -join '|') -eq ($original -join '|')) 'demo did not touch the disk'
 } finally {
     if (-not $proc.HasExited) { $proc.CloseMainWindow() | Out-Null; if (-not $proc.WaitForExit(5000)) { $proc.Kill() } }

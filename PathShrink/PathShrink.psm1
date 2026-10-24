@@ -472,7 +472,7 @@ function New-PathShrinkPlan {
         MinNameLength = $MinNameLength; Protect = $Protect
         ItemCount = $Inventory.Items.Count; Errors = $Inventory.Errors; Skipped = $Inventory.Skipped
         LongItems = $long; Renames = $renames; Paths = @()
-        CreatedAt = (Get-Date)
+        Inventory = $Inventory; CreatedAt = (Get-Date)
     }
     Update-PathShrinkPlan -Plan $plan
 }
@@ -499,6 +499,89 @@ function Update-PathShrinkPlan {
         }
     })
     $Plan
+}
+
+function Test-PathShrinkRename {
+    <#
+    .SYNOPSIS
+        Checks a name typed by hand for one item of a plan. Returns nothing when it can be used, or the reason why not.
+    .DESCRIPTION
+        Codes: Empty, BadChar, Trailing, Reserved, TooLong (over 255), Longer (longer than the
+        original: PathShrink only shortens), InUse (another item in the same folder has that
+        name, counting the planned renames), Protected (above the analysed folder or a first-level
+        folder of a personal OneDrive), Extension (a file must keep its extension), NotFound.
+    .PARAMETER Rel
+        The item, as its original path inside the library.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][psobject]$Plan, [Parameter(Mandatory)][string]$Rel, [AllowEmptyString()][string]$NewName)
+    $fail = { param($c, $d) [pscustomobject]@{ Code = $c; Detail = $d } }
+    $item = $null
+    foreach ($it in $Plan.Inventory.Items) { if ($it.Rel -eq $Rel) { $item = $it; break } }
+    if (-not $item) { return (& $fail 'NotFound' $Rel) }
+    $k = $Rel.Split('\').Count - 1
+    if ($k -lt $Plan.Library.MinRenameDepth) { return (& $fail 'Protected' '') }
+    if ($NewName -ceq $item.Name) { return }
+    if (-not $NewName) { return (& $fail 'Empty' '') }
+    if ($NewName.IndexOfAny($script:BadChars) -ge 0 -or $NewName -match '[\x00-\x1f]') { return (& $fail 'BadChar' '') }
+    if ($NewName -ne $NewName.Trim() -or $NewName.EndsWith('.')) { return (& $fail 'Trailing' '') }
+    $stem = $NewName; $dot = $NewName.IndexOf('.'); if ($dot -gt 0) { $stem = $NewName.Substring(0, $dot) }
+    if ($NewName -eq '.lock' -or $script:DeviceNames -contains $stem -or $NewName -like '*_vti_*' -or $NewName.StartsWith('~$')) { return (& $fail 'Reserved' '') }
+    if ($NewName.Length -gt 255) { return (& $fail 'TooLong' '') }
+    if ($NewName.Length -gt $item.Name.Length) { return (& $fail 'Longer' '') }
+    if (-not $item.IsFolder) {
+        $ext = [IO.Path]::GetExtension($item.Name)
+        if ([IO.Path]::GetExtension($NewName) -ne $ext) { return (& $fail 'Extension' $ext) }
+    }
+    $i = $Rel.LastIndexOf('\'); $parent = $(if ($i -ge 0) { $Rel.Substring(0, $i) } else { '' })
+    $planned = @{}; foreach ($r in $Plan.Renames) { if ($r.Selected) { $planned[$r.Rel] = $r.NewName } }
+    foreach ($it in $Plan.Inventory.Items) {
+        if ($it.Rel -eq $Rel) { continue }
+        $j = $it.Rel.LastIndexOf('\'); $pp = $(if ($j -ge 0) { $it.Rel.Substring(0, $j) } else { '' })
+        if ($pp -ne $parent) { continue }
+        $name = $(if ($planned.ContainsKey($it.Rel)) { $planned[$it.Rel] } else { $it.Name })
+        if ($name -eq $NewName) { return (& $fail 'InUse' $name) }
+    }
+}
+
+function Set-PathShrinkRename {
+    <#
+    .SYNOPSIS
+        Uses a name typed by hand for one item of a plan, then recomputes the plan. Changes nothing on disk.
+    .DESCRIPTION
+        The name is checked with Test-PathShrinkRename first and an error is thrown if it cannot be
+        used. Typing the original name back removes the rename from the plan. A name for an item
+        the plan did not rename adds a rename.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][psobject]$Plan, [Parameter(Mandatory)][string]$Rel, [Parameter(Mandatory)][string]$NewName)
+    $e = Test-PathShrinkRename -Plan $Plan -Rel $Rel -NewName $NewName
+    if ($e) { throw ('Cannot use "{0}" for {1}: {2} {3}' -f $NewName, $Rel, $e.Code, $e.Detail).Trim() }
+    $item = $null
+    foreach ($it in $Plan.Inventory.Items) { if ($it.Rel -eq $Rel) { $item = $it; break } }
+    $existing = $null
+    foreach ($r in $Plan.Renames) { if ($r.Rel -eq $Rel) { $existing = $r; break } }
+    if ($NewName -ceq $item.Name) {
+        $Plan.Renames = @($Plan.Renames | Where-Object { $_.Rel -ne $Rel })
+    } elseif ($existing) {
+        $existing.NewName = $NewName; $existing.Saved = $item.Name.Length - $NewName.Length
+        $existing.Method = 'manual'; $existing.Selected = $true
+    } else {
+        $affects = 1
+        foreach ($it in $Plan.Inventory.Items) { if ($it.Rel.StartsWith($Rel + '\', [StringComparison]::OrdinalIgnoreCase)) { $affects++ } }
+        $i = $Rel.LastIndexOf('\')
+        $id = 0; foreach ($r in $Plan.Renames) { if ($r.Id -gt $id) { $id = $r.Id } }
+        $new = New-Object psobject -Property @{
+            Id = $id + 1; Rel = $Rel; Depth = $Rel.Split('\').Count
+            Parent = $(if ($i -ge 0) { $Rel.Substring(0, $i) } else { '' })
+            Type = $(if ($item.IsFolder) { 'Folder' } else { 'File' })
+            OriginalName = $item.Name; NewName = $NewName; Saved = $item.Name.Length - $NewName.Length
+            Affects = $affects; Method = 'manual'; Selected = $true
+        }
+        $Plan.Renames = @(@($Plan.Renames) + $new | Sort-Object Rel)
+    }
+    Write-Verbose ('Manual name: {0} -> {1}' -f $Rel, $NewName)
+    Update-PathShrinkPlan -Plan $Plan
 }
 
 function Get-PathShrinkSummary {
@@ -979,5 +1062,5 @@ function Start-PathShrink {
 }
 
 Export-ModuleMember -Function Get-PathShrinkLibrary, Get-PathShrinkAccount, Get-PathShrinkSyncMount, Get-PathShrinkInventory,
-    New-PathShrinkPlan, Update-PathShrinkPlan, Get-PathShrinkSummary, Invoke-PathShrinkPlan, Undo-PathShrink, Test-PathShrinkUndo, Get-PathShrinkHistory,
+    New-PathShrinkPlan, Update-PathShrinkPlan, Test-PathShrinkRename, Set-PathShrinkRename, Get-PathShrinkSummary, Invoke-PathShrinkPlan, Undo-PathShrink, Test-PathShrinkUndo, Get-PathShrinkHistory,
     Find-PathShrinkSyncIssue, Export-PathShrinkReport, Get-PathShrinkEnvironment, Invoke-PathShrink, Start-PathShrink

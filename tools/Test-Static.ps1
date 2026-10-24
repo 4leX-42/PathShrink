@@ -35,6 +35,8 @@ foreach ($f in Get-ChildItem -LiteralPath $repo -Recurse -File | Where-Object { 
 $gui = Join-Path $repo 'PathShrink\gui'
 $used = @([regex]::Matches([IO.File]::ReadAllText((Join-Path $gui 'MainWindow.xaml')), '\{\{([^}]+)\}\}') | ForEach-Object { $_.Groups[1].Value })
 $used += @([regex]::Matches([IO.File]::ReadAllText((Join-Path $gui 'Gui.ps1')), "\bT '([^']+)'") | ForEach-Object { $_.Groups[1].Value })
+$helpKeys = [regex]::Match([IO.File]::ReadAllText((Join-Path $gui 'Gui.ps1')), '\$script:HelpKeys = @\(([^)]*)\)').Groups[1].Value
+foreach ($k in [regex]::Matches($helpKeys, "'([^']+)'")) { foreach ($s in 't', 's', 'b') { $used += 'help.{0}.{1}' -f $k.Groups[1].Value, $s } }
 $langs = @{}
 foreach ($code in 'en', 'es', 'pt') {
     try { $langs[$code] = [IO.File]::ReadAllText((Join-Path $gui "strings.$code.json"), [Text.Encoding]::UTF8) | ConvertFrom-Json }
@@ -43,6 +45,8 @@ foreach ($code in 'en', 'es', 'pt') {
 foreach ($code in $langs.Keys) {
     $names = @($langs[$code].PSObject.Properties.Name)
     foreach ($k in ($used | Sort-Object -Unique)) { if ($names -notcontains $k) { Fail "strings.$code.json lacks '$k'" } }
+    # House style: no text ends with a full stop (progress messages end with the ellipsis character).
+    foreach ($p in $langs[$code].PSObject.Properties) { if ($p.Value -match '[^.]\.$|\.\.\.$') { Fail "strings.$code.json '$($p.Name)' ends with a full stop" } }
     foreach ($p in $langs['en'].PSObject.Properties) {
         $other = $langs[$code].($p.Name)
         $a = @([regex]::Matches($p.Value, '\{\d') | ForEach-Object { $_.Value } | Sort-Object -Unique) -join ''

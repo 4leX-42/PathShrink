@@ -11,7 +11,7 @@
     FunctionsToExport    = @(
         'Start-PathShrink', 'Invoke-PathShrink',
         'Get-PathShrinkLibrary', 'Get-PathShrinkAccount', 'Get-PathShrinkSyncMount', 'Get-PathShrinkInventory',
-        'New-PathShrinkPlan', 'Update-PathShrinkPlan', 'Get-PathShrinkSummary', 'Invoke-PathShrinkPlan', 'Undo-PathShrink', 'Test-PathShrinkUndo', 'Get-PathShrinkHistory',
+        'New-PathShrinkPlan', 'Update-PathShrinkPlan', 'Test-PathShrinkRename', 'Set-PathShrinkRename', 'Get-PathShrinkSummary', 'Invoke-PathShrinkPlan', 'Undo-PathShrink', 'Test-PathShrinkUndo', 'Get-PathShrinkHistory',
         'Find-PathShrinkSyncIssue', 'Export-PathShrinkReport', 'Get-PathShrinkEnvironment'
     )
     CmdletsToExport      = @()
