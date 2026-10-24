@@ -163,6 +163,24 @@
         </Setter.Value>
       </Setter>
     </Style>
+    <Style x:Key="LangToggle" TargetType="RadioButton" BasedOn="{StaticResource ModeToggle}">
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Border x:Name="B" Background="Transparent" Padding="7,5" BorderThickness="0,0,0,2" BorderBrush="Transparent">
+              <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{StaticResource GoldLo}"/><Setter Property="Foreground" Value="{StaticResource Gold}"/></Trigger>
+              <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource GoldHi}"/></Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="B" Property="Background" Value="#26262B"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
     <Style x:Key="TabHeader" TargetType="RadioButton" BasedOn="{StaticResource ModeToggle}">
       <Setter Property="FontSize" Value="13"/>
       <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="False"/>
@@ -352,12 +370,16 @@
       </StackPanel>
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,10,18,0">
-          <RadioButton x:Name="ModeBasic" Style="{StaticResource ModeToggle}" GroupName="Mode" IsChecked="True" Content="_Basic" ToolTip="Guided steps, safe defaults (Alt+B)" AutomationProperties.Name="Basic mode"/>
-          <RadioButton x:Name="ModePro" Style="{StaticResource ModeToggle}" GroupName="Mode" Content="_Pro" ToolTip="Settings, per-change control, diagnostics and logs (Alt+P)" AutomationProperties.Name="Pro mode"/>
+          <RadioButton x:Name="LangEN" Style="{StaticResource LangToggle}" GroupName="Lang" Content="EN" ToolTip="English"/>
+          <RadioButton x:Name="LangES" Style="{StaticResource LangToggle}" GroupName="Lang" Content="ES" ToolTip="Espa&#241;ol"/>
+          <RadioButton x:Name="LangPT" Style="{StaticResource LangToggle}" GroupName="Lang" Content="PT" ToolTip="Portugu&#234;s"/>
+          <Border Width="1" Background="#33333A" Margin="12,4,12,4"/>
+          <RadioButton x:Name="ModeBasic" Style="{StaticResource ModeToggle}" GroupName="Mode" IsChecked="True" Content="{{mode.basic}}" ToolTip="{{mode.basic.tip}}" AutomationProperties.Name="{{mode.basic.name}}"/>
+          <RadioButton x:Name="ModePro" Style="{StaticResource ModeToggle}" GroupName="Mode" Content="{{mode.pro}}" ToolTip="{{mode.pro.tip}}" AutomationProperties.Name="{{mode.pro.name}}"/>
         </StackPanel>
-        <Button x:Name="BtnMin" Style="{StaticResource CaptionButton}" Content="&#xE921;" AutomationProperties.Name="Minimize"/>
-        <Button x:Name="BtnMax" Style="{StaticResource CaptionButton}" Content="&#xE922;" AutomationProperties.Name="Maximize"/>
-        <Button x:Name="BtnClose" Style="{StaticResource CaptionButton}" Content="&#xE8BB;" AutomationProperties.Name="Close"/>
+        <Button x:Name="BtnMin" Style="{StaticResource CaptionButton}" Content="&#xE921;" AutomationProperties.Name="{{caption.min}}"/>
+        <Button x:Name="BtnMax" Style="{StaticResource CaptionButton}" Content="&#xE922;" AutomationProperties.Name="{{caption.max}}"/>
+        <Button x:Name="BtnClose" Style="{StaticResource CaptionButton}" Content="&#xE8BB;" AutomationProperties.Name="{{caption.close}}"/>
       </StackPanel>
     </Grid>
 
@@ -377,11 +399,11 @@
 
         <!-- Steps -->
         <StackPanel x:Name="Steps" Orientation="Horizontal" Margin="0,0,0,14">
-          <TextBlock x:Name="Step1" Text="1  Folder" Margin="0,0,22,0"/>
-          <TextBlock x:Name="Step2" Text="2  Scan" Margin="0,0,22,0"/>
-          <TextBlock x:Name="Step3" Text="3  Review" Margin="0,0,22,0"/>
-          <TextBlock x:Name="Step4" Text="4  Apply" Margin="0,0,22,0"/>
-          <TextBlock x:Name="Step5" Text="5  Done"/>
+          <TextBlock x:Name="Step1" Text="{{step.1}}" Margin="0,0,22,0"/>
+          <TextBlock x:Name="Step2" Text="{{step.2}}" Margin="0,0,22,0"/>
+          <TextBlock x:Name="Step3" Text="{{step.3}}" Margin="0,0,22,0"/>
+          <TextBlock x:Name="Step4" Text="{{step.4}}" Margin="0,0,22,0"/>
+          <TextBlock x:Name="Step5" Text="{{step.5}}"/>
         </StackPanel>
 
         <!-- Folder card -->
@@ -394,11 +416,11 @@
             </Grid.ColumnDefinitions>
             <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="22" Foreground="{StaticResource Gold}" VerticalAlignment="Center" Margin="0,0,16,0"/>
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-              <TextBlock x:Name="FolderPath" Text="Looking for OneDrive..." FontFamily="Segoe UI Semibold" FontSize="15" TextTrimming="CharacterEllipsis"/>
+              <TextBlock x:Name="FolderPath" Text="{{folder.looking}}" FontFamily="Segoe UI Semibold" FontSize="15" TextTrimming="CharacterEllipsis"/>
               <TextBlock x:Name="FolderInfo" Text="" Style="{StaticResource Hint}" Margin="0,3,0,0"/>
             </StackPanel>
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-              <Button x:Name="BtnFolder" Style="{StaticResource CutButton}" Content="_Change folder" Margin="12,0,0,0" ToolTip="Pick another folder in OneDrive or a synced SharePoint library. You can also drop a folder on this window." AutomationProperties.Name="Change folder"/>
+              <Button x:Name="BtnFolder" Style="{StaticResource CutButton}" Content="{{folder.change}}" Margin="12,0,0,0" ToolTip="{{folder.change.tip}}" AutomationProperties.Name="{{folder.change.name}}"/>
             </StackPanel>
           </Grid>
         </Border>
@@ -408,23 +430,21 @@
           <!-- Start -->
           <Grid x:Name="PanelStart">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="640">
-              <TextBlock Text="Files that will not sync because their path is too long" FontFamily="Segoe UI Light" FontSize="24" TextWrapping="Wrap" TextAlignment="Center"/>
+              <TextBlock Text="{{start.title}}" FontFamily="Segoe UI Light" FontSize="24" TextWrapping="Wrap" TextAlignment="Center"/>
               <TextBlock Style="{StaticResource Hint}" FontSize="13.5" TextAlignment="Center" Margin="0,14,0,0" LineHeight="21">
-                OneDrive and SharePoint refuse any item whose full web path is longer than 400 characters, counting the library address, every folder and the file name.
-                PathShrink finds those items and shortens folder names, first without removing any letter. Nothing changes until you review and confirm.
-              </TextBlock>
-              <Button x:Name="BtnScan" Style="{StaticResource PrimaryButton}" Content="_Scan for long paths" HorizontalAlignment="Center" Margin="0,26,0,0" MinWidth="220" AutomationProperties.Name="Scan for long paths"/>
-              <TextBlock x:Name="StartNote" Style="{StaticResource Hint}" TextAlignment="Center" Margin="0,14,0,0" Text="Read-only. Cloud-only files are not downloaded."/>
+                {{start.body}}</TextBlock>
+              <Button x:Name="BtnScan" Style="{StaticResource PrimaryButton}" Content="{{start.scan}}" HorizontalAlignment="Center" Margin="0,26,0,0" MinWidth="220" AutomationProperties.Name="{{start.scan.name}}"/>
+              <TextBlock x:Name="StartNote" Style="{StaticResource Hint}" TextAlignment="Center" Margin="0,14,0,0" Text="{{start.note}}"/>
             </StackPanel>
           </Grid>
 
           <!-- Working -->
           <Grid x:Name="PanelWork" Visibility="Collapsed">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Width="460">
-              <TextBlock x:Name="WorkTitle" Text="Scanning..." FontFamily="Segoe UI Light" FontSize="24" TextAlignment="Center"/>
+              <TextBlock x:Name="WorkTitle" Text="{{work.scanning}}" FontFamily="Segoe UI Light" FontSize="24" TextAlignment="Center"/>
               <ProgressBar x:Name="WorkBar" Height="3" Margin="0,20,0,0" IsIndeterminate="True" Foreground="{StaticResource Gold}" Background="#2A2A2F" BorderThickness="0"/>
               <TextBlock x:Name="WorkDetail" Style="{StaticResource Hint}" TextAlignment="Center" Margin="0,12,0,0" Text=""/>
-              <Button x:Name="BtnCancel" Style="{StaticResource CutButton}" Content="Cancel" HorizontalAlignment="Center" Margin="0,24,0,0" AutomationProperties.Name="Cancel"/>
+              <Button x:Name="BtnCancel" Style="{StaticResource CutButton}" Content="{{work.cancel}}" HorizontalAlignment="Center" Margin="0,24,0,0"/>
             </StackPanel>
           </Grid>
 
@@ -439,43 +459,43 @@
             </Grid.RowDefinitions>
             <UniformGrid Rows="1" Columns="4" Margin="0,0,0,12">
               <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16,10" Margin="0,0,10,0">
-                <StackPanel><TextBlock x:Name="TileItems" Style="{StaticResource TileValue}" Text="0"/><TextBlock Text="items scanned" Style="{StaticResource Hint}"/></StackPanel>
+                <StackPanel><TextBlock x:Name="TileItems" Style="{StaticResource TileValue}" Text="0"/><TextBlock Text="{{tile.items}}" Style="{StaticResource Hint}"/></StackPanel>
               </Border>
-              <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16,10" Margin="0,0,10,0" ToolTip="Paths above the target length (limit minus safety margin)">
-                <StackPanel><TextBlock x:Name="TileLong" Style="{StaticResource TileValue}" Text="0"/><TextBlock x:Name="TileLongLabel" Text="paths too long" Style="{StaticResource Hint}"/></StackPanel>
+              <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16,10" Margin="0,0,10,0" ToolTip="{{tile.long.tip}}">
+                <StackPanel><TextBlock x:Name="TileLong" Style="{StaticResource TileValue}" Text="0"/><TextBlock x:Name="TileLongLabel" Text="" Style="{StaticResource Hint}"/></StackPanel>
               </Border>
               <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16,10" Margin="0,0,10,0">
-                <StackPanel><TextBlock x:Name="TileFixed" Style="{StaticResource TileValue}" Foreground="{StaticResource Ok}" Text="0"/><TextBlock Text="fixed by the plan" Style="{StaticResource Hint}"/></StackPanel>
+                <StackPanel><TextBlock x:Name="TileFixed" Style="{StaticResource TileValue}" Foreground="{StaticResource Ok}" Text="0"/><TextBlock Text="{{tile.fixed}}" Style="{StaticResource Hint}"/></StackPanel>
               </Border>
               <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="16,10">
-                <StackPanel><TextBlock x:Name="TileLeft" Style="{StaticResource TileValue}" Text="0"/><TextBlock Text="need attention" Style="{StaticResource Hint}"/></StackPanel>
+                <StackPanel><TextBlock x:Name="TileLeft" Style="{StaticResource TileValue}" Text="0"/><TextBlock Text="{{tile.left}}" Style="{StaticResource Hint}"/></StackPanel>
               </Border>
             </UniformGrid>
 
             <Border Grid.Row="1" x:Name="Explain" BorderBrush="{StaticResource Gold}" BorderThickness="2,0,0,0" Padding="14,6" Margin="0,0,0,10">
               <StackPanel>
                 <TextBlock x:Name="ExplainText" TextWrapping="Wrap" LineHeight="20"/>
-                <Button x:Name="BtnTrimOffer" Style="{StaticResource LinkButton}" Content="_Show a plan that also trims letters" HorizontalAlignment="Left" Margin="0,6,0,0" Visibility="Collapsed"/>
+                <Button x:Name="BtnTrimOffer" Style="{StaticResource LinkButton}" Content="{{explain.trimOffer}}" HorizontalAlignment="Left" Margin="0,6,0,0" Visibility="Collapsed"/>
               </StackPanel>
             </Border>
 
             <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,4">
-              <RadioButton x:Name="TabChanges" Style="{StaticResource TabHeader}" GroupName="Tabs" IsChecked="True" Content="Changes"/>
-              <RadioButton x:Name="TabPaths" Style="{StaticResource TabHeader}" GroupName="Tabs" Content="Long paths"/>
-              <RadioButton x:Name="TabIssues" Style="{StaticResource TabHeader}" GroupName="Tabs" Content="Other sync issues" Visibility="Collapsed"/>
-              <RadioButton x:Name="TabLog" Style="{StaticResource TabHeader}" GroupName="Tabs" Content="Log" Visibility="Collapsed"/>
+              <RadioButton x:Name="TabChanges" Style="{StaticResource TabHeader}" GroupName="Tabs" IsChecked="True" Content="{{tab.changes}}"/>
+              <RadioButton x:Name="TabPaths" Style="{StaticResource TabHeader}" GroupName="Tabs" Content="{{tab.paths}}"/>
+              <RadioButton x:Name="TabIssues" Style="{StaticResource TabHeader}" GroupName="Tabs" Content="{{tab.issues}}" Visibility="Collapsed"/>
+              <RadioButton x:Name="TabLog" Style="{StaticResource TabHeader}" GroupName="Tabs" Content="{{tab.log}}" Visibility="Collapsed"/>
             </StackPanel>
 
             <Border Grid.Row="3" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="1">
               <Grid>
-                <DataGrid x:Name="GridChanges" Style="{StaticResource Grid}" AutomationProperties.Name="Planned renames">
+                <DataGrid x:Name="GridChanges" Style="{StaticResource Grid}" AutomationProperties.Name="{{grid.changes.name}}">
                   <DataGrid.Columns>
                     <DataGridTemplateColumn x:Name="ColSelect" Header="" Width="38" Visibility="Collapsed">
                       <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate><CheckBox Style="{StaticResource Check}" IsChecked="{Binding Selected, Mode=OneWay}" Tag="sel" ToolTip="Include this rename"/></DataTemplate>
+                        <DataTemplate><CheckBox Style="{StaticResource Check}" IsChecked="{Binding Selected, Mode=OneWay}" Tag="sel" ToolTip="{{col.include}}"/></DataTemplate>
                       </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="Current name" Width="2*">
+                    <DataGridTemplateColumn Header="{{col.current}}" Width="2*">
                       <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                           <StackPanel>
@@ -484,42 +504,42 @@
                         </DataTemplate>
                       </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="New name" Width="2*">
+                    <DataGridTemplateColumn Header="{{col.new}}" Width="2*">
                       <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate><TextBlock Text="{Binding NewName}" Foreground="#E2C48A" TextTrimming="CharacterEllipsis" ToolTip="{Binding NewName}"/></DataTemplate>
                       </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="Saved" Binding="{Binding Saved}" Width="60"/>
-                    <DataGridTextColumn Header="Items" Binding="{Binding Affects}" Width="60"/>
-                    <DataGridTextColumn x:Name="ColMethod" Header="How" Binding="{Binding Method}" Width="150" Visibility="Collapsed"/>
-                    <DataGridTemplateColumn x:Name="ColParent" Header="In folder" Width="2*">
+                    <DataGridTextColumn Header="{{col.saved}}" Binding="{Binding Saved}" Width="82"/>
+                    <DataGridTextColumn Header="{{col.items}}" Binding="{Binding Affects}" Width="82"/>
+                    <DataGridTextColumn x:Name="ColMethod" Header="{{col.how}}" Binding="{Binding MethodText}" Width="170" Visibility="Collapsed"/>
+                    <DataGridTemplateColumn x:Name="ColParent" Header="{{col.folder}}" Width="2*">
                       <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate><TextBlock Text="{Binding Parent}" Style="{StaticResource Mono}" Foreground="#B8B8BC" ToolTip="{Binding Parent}"/></DataTemplate>
                       </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                   </DataGrid.Columns>
                 </DataGrid>
-                <DataGrid x:Name="GridPaths" Style="{StaticResource Grid}" Visibility="Collapsed" AutomationProperties.Name="Long paths">
+                <DataGrid x:Name="GridPaths" Style="{StaticResource Grid}" Visibility="Collapsed" AutomationProperties.Name="{{grid.paths.name}}">
                   <DataGrid.Columns>
-                    <DataGridTemplateColumn Header="Status" Width="120">
+                    <DataGridTemplateColumn Header="{{col.status}}" Width="120">
                       <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate><TextBlock Text="{Binding Label}" Foreground="{Binding Color}"/></DataTemplate>
                       </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="Before" Binding="{Binding Before}" Width="64"/>
-                    <DataGridTextColumn Header="After" Binding="{Binding After}" Width="64"/>
-                    <DataGridTemplateColumn Header="Path inside the library" Width="*">
+                    <DataGridTextColumn Header="{{col.before}}" Binding="{Binding Before}" Width="64"/>
+                    <DataGridTextColumn Header="{{col.after}}" Binding="{Binding After}" Width="64"/>
+                    <DataGridTemplateColumn Header="{{col.path}}" Width="*">
                       <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate><TextBlock Text="{Binding Rel}" Style="{StaticResource Mono}" ToolTip="{Binding NewRel}"/></DataTemplate>
                       </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                   </DataGrid.Columns>
                 </DataGrid>
-                <DataGrid x:Name="GridIssues" Style="{StaticResource Grid}" Visibility="Collapsed" AutomationProperties.Name="Other sync issues">
+                <DataGrid x:Name="GridIssues" Style="{StaticResource Grid}" Visibility="Collapsed" AutomationProperties.Name="{{grid.issues.name}}">
                   <DataGrid.Columns>
-                    <DataGridTextColumn Header="Issue" Binding="{Binding Issue}" Width="220"/>
-                    <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="70"/>
-                    <DataGridTemplateColumn Header="Path inside the library" Width="*">
+                    <DataGridTextColumn Header="{{col.issue}}" Binding="{Binding Issue}" Width="220"/>
+                    <DataGridTextColumn Header="{{col.type}}" Binding="{Binding TypeText}" Width="70"/>
+                    <DataGridTemplateColumn Header="{{col.path}}" Width="*">
                       <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate><TextBlock Text="{Binding Rel}" Style="{StaticResource Mono}" ToolTip="{Binding Rel}"/></DataTemplate>
                       </DataGridTemplateColumn.CellTemplate>
@@ -527,29 +547,29 @@
                   </DataGrid.Columns>
                 </DataGrid>
                 <TextBox x:Name="LogBox" Visibility="Collapsed" IsReadOnly="True" Background="Transparent" Foreground="#B8B8BC" BorderThickness="0" FontFamily="Consolas" FontSize="12"
-                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="10" AutomationProperties.Name="Log"/>
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="10" AutomationProperties.Name="{{tab.log}}"/>
                 <TextBlock x:Name="EmptyText" Visibility="Collapsed" Style="{StaticResource Hint}" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"/>
               </Grid>
             </Border>
 
             <Grid Grid.Row="4" Margin="0,14,0,0">
               <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Button x:Name="BtnRescan" Style="{StaticResource LinkButton}" Content="_Scan again" Margin="0,0,18,0"/>
-                <Button x:Name="BtnExport" Style="{StaticResource LinkButton}" Content="_Export report" Margin="0,0,18,0" ToolTip="Writes CSV, JSON and an HTML report and opens the folder"/>
+                <Button x:Name="BtnRescan" Style="{StaticResource LinkButton}" Content="{{results.rescan}}" Margin="0,0,18,0"/>
+                <Button x:Name="BtnExport" Style="{StaticResource LinkButton}" Content="{{results.export}}" Margin="0,0,18,0" ToolTip="{{results.export.tip}}"/>
               </StackPanel>
-              <Button x:Name="BtnApply" Style="{StaticResource PrimaryButton}" Content="_Review and apply" HorizontalAlignment="Right" MinWidth="200"/>
+              <Button x:Name="BtnApply" Style="{StaticResource PrimaryButton}" Content="" HorizontalAlignment="Right" MinWidth="200"/>
             </Grid>
           </Grid>
 
           <!-- Done -->
           <Grid x:Name="PanelDone" Visibility="Collapsed">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="660">
-              <TextBlock x:Name="DoneTitle" Text="Done" FontFamily="Segoe UI Light" FontSize="26" TextAlignment="Center"/>
+              <TextBlock x:Name="DoneTitle" Text="{{done.title}}" FontFamily="Segoe UI Light" FontSize="26" TextAlignment="Center"/>
               <TextBlock x:Name="DoneText" Style="{StaticResource Hint}" FontSize="13.5" TextAlignment="Center" Margin="0,14,0,0" LineHeight="21"/>
               <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,26,0,0">
-                <Button x:Name="BtnUndo" Style="{StaticResource CutButton}" Content="_Undo these changes" Margin="0,0,12,0"/>
-                <Button x:Name="BtnReports" Style="{StaticResource CutButton}" Content="_Open reports" Margin="0,0,12,0"/>
-                <Button x:Name="BtnAgain" Style="{StaticResource PrimaryButton}" Content="_Scan again"/>
+                <Button x:Name="BtnUndo" Style="{StaticResource CutButton}" Content="{{done.undo}}" Margin="0,0,12,0"/>
+                <Button x:Name="BtnReports" Style="{StaticResource CutButton}" Content="{{done.reports}}" Margin="0,0,12,0"/>
+                <Button x:Name="BtnAgain" Style="{StaticResource PrimaryButton}" Content="{{done.again}}"/>
               </StackPanel>
             </StackPanel>
           </Grid>
@@ -560,47 +580,47 @@
       <Border Grid.Column="1" x:Name="SidePanel" Background="#19191C" BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0">
         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,18">
           <StackPanel>
-            <TextBlock Text="RULES" Style="{StaticResource SectionTitle}"/>
+            <TextBlock Text="{{side.rules}}" Style="{StaticResource SectionTitle}"/>
             <Grid Margin="0,0,0,10">
               <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="70"/></Grid.ColumnDefinitions>
-              <StackPanel><TextBlock Text="Limit"/><TextBlock Style="{StaticResource Hint}" Text="Server limit in characters. Microsoft: 400."/></StackPanel>
-              <TextBox x:Name="OptLimit" Grid.Column="1" Style="{StaticResource Field}" Text="400" VerticalAlignment="Top" AutomationProperties.Name="Limit"/>
+              <StackPanel><TextBlock Text="{{side.limit}}"/><TextBlock Style="{StaticResource Hint}" Text="{{side.limit.hint}}"/></StackPanel>
+              <TextBox x:Name="OptLimit" Grid.Column="1" Style="{StaticResource Field}" Text="400" VerticalAlignment="Top" AutomationProperties.Name="{{side.limit}}"/>
             </Grid>
             <Grid Margin="0,0,0,10">
               <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="70"/></Grid.ColumnDefinitions>
-              <StackPanel><TextBlock Text="Safety margin"/><TextBlock Style="{StaticResource Hint}" Text="Fix paths this close to the limit too, so the next longer file name does not fail again. Recommended: 20."/></StackPanel>
-              <TextBox x:Name="OptMargin" Grid.Column="1" Style="{StaticResource Field}" Text="20" VerticalAlignment="Top" AutomationProperties.Name="Safety margin"/>
+              <StackPanel><TextBlock Text="{{side.margin}}"/><TextBlock Style="{StaticResource Hint}" Text="{{side.margin.hint}}"/></StackPanel>
+              <TextBox x:Name="OptMargin" Grid.Column="1" Style="{StaticResource Field}" Text="20" VerticalAlignment="Top" AutomationProperties.Name="{{side.margin}}"/>
             </Grid>
-            <CheckBox x:Name="OptTrim" Style="{StaticResource Check}" Margin="0,4,0,4" AutomationProperties.Name="Allow trimming letters">
+            <CheckBox x:Name="OptTrim" Style="{StaticResource Check}" Margin="0,4,0,4" AutomationProperties.Name="{{side.trim}}">
               <StackPanel>
-                <TextBlock><Run Text="Allow trimming letters"/><Run Text="  CHANGES WORDS" Foreground="#E0C060" FontSize="10.5" FontFamily="Segoe UI Semibold"/></TextBlock>
-                <TextBlock Style="{StaticResource Hint}" Text="Cuts letters from the end of the longest folder names. File names only when no folder can give more."/>
+                <TextBlock><Run Text="{{side.trim}}"/><Run Text="{{side.trim.tag}}" Foreground="#E0C060" FontSize="10.5" FontFamily="Segoe UI Semibold"/></TextBlock>
+                <TextBlock Style="{StaticResource Hint}" Text="{{side.trim.hint}}"/>
               </StackPanel>
             </CheckBox>
             <Grid Margin="24,6,0,14">
               <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="70"/></Grid.ColumnDefinitions>
-              <StackPanel><TextBlock Text="Shortest name"/><TextBlock Style="{StaticResource Hint}" Text="Never trim a name below this length. Recommended: 20."/></StackPanel>
-              <TextBox x:Name="OptMinName" Grid.Column="1" Style="{StaticResource Field}" Text="20" VerticalAlignment="Top" AutomationProperties.Name="Shortest name"/>
+              <StackPanel><TextBlock Text="{{side.minName}}"/><TextBlock Style="{StaticResource Hint}" Text="{{side.minName.hint}}"/></StackPanel>
+              <TextBox x:Name="OptMinName" Grid.Column="1" Style="{StaticResource Field}" Text="20" VerticalAlignment="Top" AutomationProperties.Name="{{side.minName}}"/>
             </Grid>
 
-            <TextBlock Text="SCOPE" Style="{StaticResource SectionTitle}" Margin="0,6,0,8"/>
-            <TextBlock Text="Exclude (one per line)"/>
-            <TextBlock Style="{StaticResource Hint}" Text="Wildcards on a name or path. Not scanned, not renamed. Example: Archive*"/>
-            <TextBox x:Name="OptExclude" Style="{StaticResource Field}" AcceptsReturn="True" Height="54" Margin="0,4,0,10" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Exclude"/>
-            <TextBlock Text="Protect names (one per line)"/>
-            <TextBlock Style="{StaticResource Hint}" Text="Counted, never renamed. Example: CLIENT*"/>
-            <TextBox x:Name="OptProtect" Style="{StaticResource Field}" AcceptsReturn="True" Height="54" Margin="0,4,0,10" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Protect names"/>
-            <TextBlock Text="Server prefix"/>
-            <TextBlock Style="{StaticResource Hint}" Text="Leave empty to detect it. For a copied folder, type the library path, e.g. sites/Legal/Shared Documents/"/>
-            <TextBox x:Name="OptPrefix" Style="{StaticResource Field}" Margin="0,4,0,14" FontFamily="Consolas" AutomationProperties.Name="Server prefix"/>
+            <TextBlock Text="{{side.scope}}" Style="{StaticResource SectionTitle}" Margin="0,6,0,8"/>
+            <TextBlock Text="{{side.exclude}}"/>
+            <TextBlock Style="{StaticResource Hint}" Text="{{side.exclude.hint}}"/>
+            <TextBox x:Name="OptExclude" Style="{StaticResource Field}" AcceptsReturn="True" Height="54" Margin="0,4,0,10" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="{{side.exclude}}"/>
+            <TextBlock Text="{{side.protect}}"/>
+            <TextBlock Style="{StaticResource Hint}" Text="{{side.protect.hint}}"/>
+            <TextBox x:Name="OptProtect" Style="{StaticResource Field}" AcceptsReturn="True" Height="54" Margin="0,4,0,10" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="{{side.protect}}"/>
+            <TextBlock Text="{{side.prefix}}"/>
+            <TextBlock Style="{StaticResource Hint}" Text="{{side.prefix.hint}}"/>
+            <TextBox x:Name="OptPrefix" Style="{StaticResource Field}" Margin="0,4,0,14" FontFamily="Consolas" AutomationProperties.Name="{{side.prefix}}"/>
 
-            <Button x:Name="BtnReplan" Style="{StaticResource CutButton}" Content="_Apply rules" HorizontalAlignment="Left" ToolTip="Recalculate the plan. Scope changes rescan the folder."/>
+            <Button x:Name="BtnReplan" Style="{StaticResource CutButton}" Content="{{side.replan}}" HorizontalAlignment="Left" ToolTip="{{side.replan.tip}}"/>
 
-            <TextBlock Text="TOOLS" Style="{StaticResource SectionTitle}" Margin="0,22,0,8"/>
-            <Button x:Name="BtnUndoFile" Style="{StaticResource LinkButton}" Content="Undo from a file..." HorizontalAlignment="Left" Margin="0,0,0,8" ToolTip="Restore names from an undo.csv of an earlier run"/>
-            <Button x:Name="BtnEnv" Style="{StaticResource LinkButton}" Content="Check this computer" HorizontalAlignment="Left" Margin="0,0,0,8" ToolTip="PowerShell version, language mode, long paths, OneDrive accounts (written to the log)"/>
-            <Button x:Name="BtnOpenReports" Style="{StaticResource LinkButton}" Content="Open reports folder" HorizontalAlignment="Left" Margin="0,0,0,8"/>
-            <Button x:Name="BtnCopyCli" Style="{StaticResource LinkButton}" Content="Copy as command line" HorizontalAlignment="Left" ToolTip="The same run as a PowerShell command, for scripts or remote sessions"/>
+            <TextBlock Text="{{side.tools}}" Style="{StaticResource SectionTitle}" Margin="0,22,0,8"/>
+            <Button x:Name="BtnUndoFile" Style="{StaticResource LinkButton}" Content="{{side.undoFile}}" HorizontalAlignment="Left" Margin="0,0,0,8" ToolTip="{{side.undoFile.tip}}"/>
+            <Button x:Name="BtnEnv" Style="{StaticResource LinkButton}" Content="{{side.env}}" HorizontalAlignment="Left" Margin="0,0,0,8" ToolTip="{{side.env.tip}}"/>
+            <Button x:Name="BtnOpenReports" Style="{StaticResource LinkButton}" Content="{{side.openReports}}" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+            <Button x:Name="BtnCopyCli" Style="{StaticResource LinkButton}" Content="{{side.copyCli}}" HorizontalAlignment="Left" ToolTip="{{side.copyCli.tip}}"/>
           </StackPanel>
         </ScrollViewer>
       </Border>
@@ -608,7 +628,7 @@
 
     <!-- Status bar -->
     <Grid Grid.Row="2" Background="#121214">
-      <TextBlock x:Name="StatusText" Text="Ready" Foreground="{StaticResource Text2}" FontSize="12" VerticalAlignment="Center" Margin="18,0" TextTrimming="CharacterEllipsis"/>
+      <TextBlock x:Name="StatusText" Text="{{status.ready}}" Foreground="{StaticResource Text2}" FontSize="12" VerticalAlignment="Center" Margin="18,0" TextTrimming="CharacterEllipsis"/>
       <TextBlock x:Name="StatusRight" Text="" Foreground="{StaticResource Text2}" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="18,0"/>
     </Grid>
 
@@ -619,8 +639,8 @@
           <TextBlock x:Name="DlgTitle" FontFamily="Segoe UI Light" FontSize="22" TextWrapping="Wrap"/>
           <StackPanel x:Name="DlgBody" Margin="0,14,0,0"/>
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
-            <Button x:Name="DlgNo" Style="{StaticResource CutButton}" Content="Cancel" Margin="0,0,12,0" IsCancel="True"/>
-            <Button x:Name="DlgYes" Style="{StaticResource PrimaryButton}" Content="OK"/>
+            <Button x:Name="DlgNo" Style="{StaticResource CutButton}" Content="{{dlg.cancel}}" Margin="0,0,12,0" IsCancel="True"/>
+            <Button x:Name="DlgYes" Style="{StaticResource PrimaryButton}" Content="{{dlg.ok}}"/>
           </StackPanel>
         </StackPanel>
       </Border>

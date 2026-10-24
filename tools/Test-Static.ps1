@@ -31,12 +31,33 @@ foreach ($f in Get-ChildItem -LiteralPath $repo -Recurse -File | Where-Object { 
     if ($t -match '[^\x00-\x7F]') { Fail ($f.FullName.Substring($repo.Length + 1) + ' is not ASCII') }
 }
 
+# Every language file must have every key the window uses, and the same placeholders.
+$gui = Join-Path $repo 'PathShrink\gui'
+$used = @([regex]::Matches([IO.File]::ReadAllText((Join-Path $gui 'MainWindow.xaml')), '\{\{([^}]+)\}\}') | ForEach-Object { $_.Groups[1].Value })
+$used += @([regex]::Matches([IO.File]::ReadAllText((Join-Path $gui 'Gui.ps1')), "\bT '([^']+)'") | ForEach-Object { $_.Groups[1].Value })
+$langs = @{}
+foreach ($code in 'en', 'es', 'pt') {
+    try { $langs[$code] = [IO.File]::ReadAllText((Join-Path $gui "strings.$code.json"), [Text.Encoding]::UTF8) | ConvertFrom-Json }
+    catch { Fail "strings.$code.json: $($_.Exception.Message)"; continue }
+}
+foreach ($code in $langs.Keys) {
+    $names = @($langs[$code].PSObject.Properties.Name)
+    foreach ($k in ($used | Sort-Object -Unique)) { if ($names -notcontains $k) { Fail "strings.$code.json lacks '$k'" } }
+    foreach ($p in $langs['en'].PSObject.Properties) {
+        $other = $langs[$code].($p.Name)
+        $a = @([regex]::Matches($p.Value, '\{\d') | ForEach-Object { $_.Value } | Sort-Object -Unique) -join ''
+        $b = @([regex]::Matches([string]$other, '\{\d') | ForEach-Object { $_.Value } | Sort-Object -Unique) -join ''
+        if ($a -ne $b) { Fail "strings.$code.json '$($p.Name)' has placeholders '$b', English has '$a'" }
+    }
+}
+
 try { [void](Test-ModuleManifest (Join-Path $repo 'PathShrink\PathShrink.psd1')) } catch { Fail ('manifest: ' + $_.Exception.Message) }
 
 if ([Threading.Thread]::CurrentThread.ApartmentState -eq 'STA') {
     try {
         Add-Type -AssemblyName PresentationFramework
-        [void][Windows.Markup.XamlReader]::Parse([IO.File]::ReadAllText((Join-Path $repo 'PathShrink\gui\MainWindow.xaml')))
+        $xaml = [IO.File]::ReadAllText((Join-Path $repo 'PathShrink\gui\MainWindow.xaml'))
+        [void][Windows.Markup.XamlReader]::Parse([regex]::Replace($xaml, '\{\{([^}]+)\}\}', 'x'))
     } catch { Fail ('XAML: ' + $_.Exception.Message) }
 } else { Write-Host '  skip XAML load (not an STA thread)' }
 

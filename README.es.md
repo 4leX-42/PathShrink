@@ -4,7 +4,7 @@
 
 [English](README.md)
 
-![PathShrink mostrando las rutas demasiado largas y los cambios previstos](docs/images/results.png)
+![PathShrink mostrando las rutas demasiado largas y los cambios previstos](docs/images/results.es.png)
 
 OneDrive y SharePoint rechazan cualquier archivo cuya **ruta web decodificada** supere 400 caracteres.
 Esa ruta no es la que ves en el Explorador: delante de cada carpeta y del nombre del archivo va la
@@ -30,7 +30,7 @@ guarda un fichero para deshacer.
   personal (Escritorio, Documentos, Imágenes); salta accesos directos a otras bibliotecas, uniones y enlaces simbólicos.
 - **No descarga** los archivos que solo están en la nube.
 - **Otros bloqueos de sincronización** (modo Pro): nombres reservados, `_vti_`, `~$`, espacios al inicio o final.
-- Informes CSV, JSON y HTML. GUI con modo **Básico** y **Pro**, y línea de comandos.
+- Informes CSV, JSON y HTML. GUI con modo **Básico** y **Pro** en inglés, castellano y portugués (selector EN / ES / PT; por defecto, el idioma de Windows), y línea de comandos.
 - Windows PowerShell 5.1 y PowerShell 7. Sin administrador, sin módulos, sin internet.
 
 ## Empezar

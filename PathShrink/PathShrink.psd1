@@ -17,7 +17,7 @@
     CmdletsToExport      = @()
     VariablesToExport    = @()
     AliasesToExport      = @()
-    FileList             = @('PathShrink.psd1', 'PathShrink.psm1', 'gui\Gui.ps1', 'gui\MainWindow.xaml')
+    FileList             = @('PathShrink.psd1', 'PathShrink.psm1', 'gui\Gui.ps1', 'gui\MainWindow.xaml', 'gui\strings.en.json', 'gui\strings.es.json', 'gui\strings.pt.json')
     PrivateData          = @{
         PSData = @{
             Tags         = @('OneDrive', 'SharePoint', 'LongPath', 'PathTooLong', 'Sync', 'Microsoft365', 'M365', 'SysAdmin', 'Windows', 'GUI', 'WPF')

@@ -8,6 +8,7 @@ First public release. The renaming rules come from a support script used on real
 OneDrive incidents; this version turns it into a module with a window, tests and an installer.
 
 ### Added
+- Window in English, Spanish and Portuguese, with an EN / ES / PT switch; the choice is remembered.
 - Window with Basic (guided) and Pro modes: detected folder, scan in the background,
   summary tiles, plain-language explanation, per-rename selection with live totals (Pro),
   confirmation summary, verified result, undo.

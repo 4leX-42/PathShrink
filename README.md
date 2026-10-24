@@ -40,7 +40,7 @@ checks the result on disk and keeps an undo file.
 - **Other sync blockers** (Pro): reserved names (`CON`, `.lock`...), `_vti_`, `~$` lock files,
   leading or trailing spaces, names over 255 characters.
 - **Reports** in CSV, JSON and HTML.
-- **GUI with Basic and Pro modes**, and the same engine from the command line.
+- **GUI with Basic and Pro modes** in English, Spanish and Portuguese (EN / ES / PT switch, follows the Windows language by default), and the same engine from the command line.
 - Windows PowerShell 5.1 and PowerShell 7. No admin rights, no modules to install, no internet access needed.
 
 ## Quick start

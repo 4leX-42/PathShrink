@@ -46,7 +46,7 @@ function FindLike([string]$Pattern, [int]$Timeout = 15) {
 function Click($El) { $El.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke() }
 function Choose($El) { $El.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select() }
 
-$launch = "Import-Module '$repo\PathShrink\PathShrink.psd1'; Start-PathShrink -Root '$demo' -Upn 'ana.perez@contoso.com'"
+$launch = "Import-Module '$repo\PathShrink\PathShrink.psd1'; Start-PathShrink -Root '$demo' -Upn 'ana.perez@contoso.com' -Language en"
 $proc = Start-Process $Edition -ArgumentList '-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-Command', $launch -WindowStyle Hidden -PassThru
 try {
     $t0 = [DateTime]::Now

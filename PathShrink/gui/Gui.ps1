@@ -3,6 +3,39 @@
 # reports through a synchronized hashtable that a DispatcherTimer reads: the window never
 # blocks. Event handlers run inside ShowDialog, so they see the locals of
 # Show-PathShrinkWindow; everything they change lives in the $state and $ui hashtables.
+# Texts live in strings.<lang>.json (UTF-8, so accents never touch a PowerShell file);
+# the XAML holds {{key}} markers that are filled in before it is parsed.
+
+$script:PathShrinkLanguages = @('en', 'es', 'pt')
+
+function Get-PathShrinkLanguage {
+    param([string]$Requested)
+    if ($Requested -and $script:PathShrinkLanguages -contains $Requested) { return $Requested }
+    $file = Join-Path $env:LOCALAPPDATA 'PathShrink\settings.json'
+    try {
+        $saved = [string](Get-Content -LiteralPath $file -Raw -ErrorAction Stop | ConvertFrom-Json).language
+        if ($script:PathShrinkLanguages -contains $saved) { return $saved }
+    } catch { Write-Verbose 'No saved language' }
+    $ui = [Globalization.CultureInfo]::CurrentUICulture.TwoLetterISOLanguageName
+    if ($script:PathShrinkLanguages -contains $ui) { return $ui }
+    'en'
+}
+
+function Save-PathShrinkLanguage([string]$Code) {
+    $dir = Join-Path $env:LOCALAPPDATA 'PathShrink'
+    try {
+        if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        (@{ language = $Code } | ConvertTo-Json) | Set-Content -LiteralPath (Join-Path $dir 'settings.json') -Encoding UTF8
+    } catch { Write-Verbose $_.Exception.Message }
+}
+
+function Read-PathShrinkStrings([string]$Code) {
+    $h = @{}
+    $p = Join-Path $PSScriptRoot ('strings.{0}.json' -f $Code)
+    $json = [IO.File]::ReadAllText($p, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    foreach ($prop in $json.PSObject.Properties) { $h[$prop.Name] = [string]$prop.Value }
+    $h
+}
 
 function Show-PathShrinkWindow {
     [CmdletBinding()]
@@ -12,6 +45,7 @@ function Show-PathShrinkWindow {
         [string]$Root,
         [string]$Upn,
         [string]$Prefix,
+        [string]$Language,
         [string]$Screenshot,
         [ValidateSet('start', 'results', 'confirm', 'done', 'pro')][string]$ScreenshotState = 'start',
         [double]$ScreenshotScale = 1.0
@@ -24,10 +58,21 @@ function Show-PathShrinkWindow {
         throw 'The window needs a single-threaded apartment. Start PowerShell with -STA, or use PathShrink.cmd.'
     }
 
+    $lang = Get-PathShrinkLanguage $Language
+    $stringsEn = Read-PathShrinkStrings 'en'
+    $strings = $(if ($lang -eq 'en') { $stringsEn } else { Read-PathShrinkStrings $lang })
+    function T([string]$Key) {
+        $v = $strings[$Key]
+        if (-not $v) { $v = $stringsEn[$Key] }
+        if (-not $v) { $v = $Key }
+        if ($args.Count) { $v -f $args } else { $v }
+    }
+
     $xaml = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'MainWindow.xaml'))
+    $xaml = [regex]::Replace($xaml, '\{\{([^}]+)\}\}', [Text.RegularExpressions.MatchEvaluator] { param($m) [Security.SecurityElement]::Escape((T $m.Groups[1].Value)) })
     $win = [Windows.Markup.XamlReader]::Parse($xaml)
     $ui = @{}
-    foreach ($n in @('RootGrid', 'VersionText', 'ModeBasic', 'ModePro', 'BtnMin', 'BtnMax', 'BtnClose', 'SideColumn', 'SidePanel',
+    foreach ($n in @('RootGrid', 'VersionText', 'LangEN', 'LangES', 'LangPT', 'ModeBasic', 'ModePro', 'BtnMin', 'BtnMax', 'BtnClose', 'SideColumn', 'SidePanel',
             'Step1', 'Step2', 'Step3', 'Step4', 'Step5', 'FolderPath', 'FolderInfo', 'BtnFolder',
             'PanelStart', 'BtnScan', 'StartNote', 'PanelWork', 'WorkTitle', 'WorkBar', 'WorkDetail', 'BtnCancel',
             'PanelResults', 'TileItems', 'TileLong', 'TileLongLabel', 'TileFixed', 'TileLeft', 'ExplainText', 'BtnTrimOffer',
@@ -42,7 +87,7 @@ function Show-PathShrinkWindow {
     $state = @{
         Library = $null; Plan = $null; Issues = @(); Result = $null; Busy = $false; Kind = ''
         Job = $null; DlgAction = $null; ScanArgs = $null; LogLines = (New-Object System.Collections.Generic.List[string])
-        Manual = $null; NoAnim = [bool]$Screenshot
+        Manual = $null; NoAnim = [bool]$Screenshot; Relaunch = $null; Loading = $true
     }
     $brush = { param($hex) $c = New-Object Windows.Media.BrushConverter; $c.ConvertFromString($hex) }
     $gold = & $brush '#C9A96E'; $text2 = & $brush '#B8B8BC'; $dim = & $brush '#5E5E66'
@@ -50,6 +95,7 @@ function Show-PathShrinkWindow {
     $logDir = Join-Path $env:LOCALAPPDATA 'PathShrink\Logs'
     $logFile = Join-Path $logDir ('gui-{0}.log' -f (Get-Date -Format 'yyyyMMdd'))
     $ui.VersionText.Text = Get-PathShrinkVersion
+    $ui[('Lang' + $lang.ToUpperInvariant())].IsChecked = $true
 
     # ---------------------------------------------------------------- helpers
     function Add-Log([string]$Message) {
@@ -101,23 +147,21 @@ function Show-PathShrinkWindow {
             if ($child -is [Windows.DependencyObject]) { Get-Buttons $child }
         }
     }
-    function Get-IntOption($Box, [int]$Min, [int]$Max, [int]$Default, [string]$Label) {
+    function Get-IntOption($Box, [int]$Min, [int]$Max, [string]$Label) {
         $v = 0
-        if (-not [int]::TryParse($Box.Text.Trim(), [ref]$v) -or $v -lt $Min -or $v -gt $Max) {
-            throw ('{0} must be a whole number from {1} to {2}.' -f $Label, $Min, $Max)
-        }
+        if (-not [int]::TryParse($Box.Text.Trim(), [ref]$v) -or $v -lt $Min -or $v -gt $Max) { throw (T 'opt.int' $Label $Min $Max) }
         $v
     }
     function Get-Lines($Box) { @($Box.Text -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }) }
     function Get-PlanArgs {
         $a = @{
-            Limit         = (Get-IntOption $ui.OptLimit 50 400 400 'Limit')
-            Margin        = (Get-IntOption $ui.OptMargin 0 200 20 'Safety margin')
-            MinNameLength = (Get-IntOption $ui.OptMinName 3 200 20 'Shortest name')
+            Limit         = (Get-IntOption $ui.OptLimit 50 400 (T 'side.limit'))
+            Margin        = (Get-IntOption $ui.OptMargin 0 200 (T 'side.margin'))
+            MinNameLength = (Get-IntOption $ui.OptMinName 3 200 (T 'side.minName'))
             AllowTrim     = [bool]$ui.OptTrim.IsChecked
             Protect       = @(Get-Lines $ui.OptProtect)
         }
-        if ($a.Margin -ge $a.Limit) { throw 'The safety margin must be smaller than the limit.' }
+        if ($a.Margin -ge $a.Limit) { throw (T 'opt.marginLimit') }
         $a
     }
     function Test-CustomRules {
@@ -136,8 +180,18 @@ function Show-PathShrinkWindow {
         if ($pre) { $a.Prefix = $pre; if (-not $a.ContainsKey('Root') -and $Folder) { $a.Root = $Folder } }
         $a
     }
+    function Get-ErrorText([string]$Message) {
+        # Core messages are English; the common ones get the window language.
+        if ($Message -match '^No OneDrive') { return (T 'err.noOneDrive') }
+        if ($Message -match 'not inside OneDrive') { return ((T 'err.notInside') + ' ' + ($Message -replace '^.*?: ', '' -replace '\. Use -Root.*$', '')) }
+        $Message
+    }
+    function Get-Translated([string]$Prefix, [string]$Value, [string]$Separator) {
+        @($Value -split [regex]::Escape($Separator) | ForEach-Object { T ($Prefix + $_) }) -join $Separator
+    }
     function Show-Dialog {
-        param([string]$Title, [object[]]$Lines, [string]$Yes = 'OK', [string]$No = '', [scriptblock]$OnYes)
+        param([string]$Title, [object[]]$Lines, [string]$Yes, [string]$No = '', [scriptblock]$OnYes)
+        if (-not $Yes) { $Yes = T 'dlg.ok' }
         $ui.DlgTitle.Text = $Title
         $ui.DlgBody.Children.Clear()
         foreach ($l in $Lines) {
@@ -163,31 +217,31 @@ function Show-PathShrinkWindow {
         if ($Err -is [Management.Automation.ErrorRecord]) { $msg = $Err.Exception.Message }
         Add-Log ('ERROR {0}: {1}' -f $What, $msg)
         $tips = @()
-        if ($msg -match 'No OneDrive') { $tips += 'Sign in to OneDrive, or pick a folder with Change folder.' }
-        elseif ($msg -match 'not inside OneDrive') { $tips += 'Pick a folder inside OneDrive or a synced SharePoint library. To check any other folder, switch to Pro and type its server prefix.' }
-        elseif ($msg -match 'denied|access') { $tips += 'Close any file open from that folder, then try again. Run PathShrink as the user who owns the OneDrive, not as an administrator.' }
-        elseif ($msg -match 'used by another process|being used') { $tips += 'A file is open in another program. Close it and try again.' }
-        else { $tips += 'Details are in the log (Pro mode) and in ' + $logFile }
-        Show-Dialog -Title $What -Lines (@(@{ Text = $msg; Color = $badBrush }) + $tips)
+        if ($msg -match 'No OneDrive') { $tips += T 'tip.noOneDrive' }
+        elseif ($msg -match 'not inside OneDrive') { $tips += T 'tip.notInside' }
+        elseif ($msg -match 'denied|access') { $tips += T 'tip.denied' }
+        elseif ($msg -match 'used by another process|being used') { $tips += T 'tip.inUse' }
+        else { $tips += T 'tip.log' $logFile }
+        Show-Dialog -Title $What -Lines (@(@{ Text = (Get-ErrorText $msg); Color = $badBrush }) + $tips)
     }
     function Set-Busy([bool]$Busy) {
         $state.Busy = $Busy
-        foreach ($b in 'BtnFolder', 'BtnReplan', 'BtnUndoFile', 'BtnScan') { $ui[$b].IsEnabled = -not $Busy }
+        foreach ($b in 'BtnFolder', 'BtnReplan', 'BtnUndoFile', 'BtnScan', 'LangEN', 'LangES', 'LangPT') { $ui[$b].IsEnabled = -not $Busy }
     }
 
     # ---------------------------------------------------------------- folder
     function Set-Library($Lib) {
         $state.Library = $Lib
         $ui.FolderPath.Text = $Lib.Path
-        $parts = @($Lib.Kind)
+        $parts = @(T ('kind.' + $Lib.Kind))
         if ($Lib.Account) { $parts += $Lib.Account }
-        $parts += ('web path prefix {0} characters' -f $Lib.Prefix.Length)
-        if ($ui.ModePro.IsChecked) { $parts += ('"{0}" ({1})' -f $Lib.Prefix, $Lib.PrefixSource) }
-        if (Test-CustomRules) { $parts += 'custom rules active' }
+        $parts += T 'folder.prefix' $Lib.Prefix.Length
+        if ($ui.ModePro.IsChecked) { $parts += ('"{0}" ({1})' -f $Lib.Prefix, (T ('source.' + $Lib.PrefixSource))) }
+        if (Test-CustomRules) { $parts += T 'folder.custom' }
         $ui.FolderInfo.Text = $parts -join '  /  '
         $ui.FolderInfo.Foreground = $text2
         $ui.BtnScan.IsEnabled = $true
-        $ui.StartNote.Text = 'Read-only. Cloud-only files are not downloaded.'
+        $ui.StartNote.Text = T 'start.note'
     }
     function Select-Library([string]$Folder) {
         try {
@@ -196,15 +250,15 @@ function Show-PathShrinkWindow {
             Add-Log ('Folder: {0} ({1}, prefix {2} chars from {3})' -f $lib.Path, $lib.Kind, $lib.Prefix.Length, $lib.PrefixSource)
             $state.Plan = $null
             Show-Panel 'PanelStart'; Set-Step 2
-            Set-Status 'Ready to scan' ''
+            Set-Status (T 'status.readyScan') ''
             return $true
         } catch {
             $state.Library = $null
-            $ui.FolderPath.Text = $(if ($Folder) { $Folder } else { 'No OneDrive folder found' })
-            $ui.FolderInfo.Text = $_.Exception.Message
+            $ui.FolderPath.Text = $(if ($Folder) { $Folder } else { T 'folder.none' })
+            $ui.FolderInfo.Text = Get-ErrorText $_.Exception.Message
             $ui.FolderInfo.Foreground = $warnBrush
             $ui.BtnScan.IsEnabled = $false
-            $ui.StartNote.Text = 'Choose a folder to start.'
+            $ui.StartNote.Text = T 'start.choose'
             Set-Step 1
             Add-Log ('Folder not usable: {0}' -f $_.Exception.Message)
             return $false
@@ -272,12 +326,12 @@ function Show-PathShrinkWindow {
         $secs = ([DateTime]::Now - $j.Started).TotalSeconds
         switch ($j.Kind) {
             'scan' {
-                if ($s.Phase -eq 'plan') { $ui.WorkDetail.Text = ('{0:N0} items read. Working out the shortest changes...' -f $s.Count) }
-                else { $ui.WorkDetail.Text = ('{0:N0} items read' -f $s.Count) }
+                if ($s.Phase -eq 'plan') { $ui.WorkDetail.Text = T 'work.readPlan' $s.Count }
+                else { $ui.WorkDetail.Text = T 'work.read' $s.Count }
             }
             'apply' {
                 if ($s.Total) { $ui.WorkBar.IsIndeterminate = $false; $ui.WorkBar.Maximum = $s.Total; $ui.WorkBar.Value = $s.Count }
-                $ui.WorkDetail.Text = $(if ($s.Count -ge $s.Total -and $s.Total) { 'Checking the result on disk...' } else { '{0} of {1} renamed' -f $s.Count, $s.Total })
+                $ui.WorkDetail.Text = $(if ($s.Count -ge $s.Total -and $s.Total) { T 'work.checking' } else { T 'work.renamed' $s.Count $s.Total })
             }
         }
         Set-Status $ui.WorkTitle.Text ('{0:N0} s' -f $secs)
@@ -287,11 +341,11 @@ function Show-PathShrinkWindow {
         $j.PS.Runspace.Dispose(); $j.PS.Dispose()
         $state.Job = $null
         Set-Busy $false
-        if ($j.Cancelled) { Show-Panel 'PanelStart'; Set-Step 2; Set-Status 'Cancelled' ''; return }
+        if ($j.Cancelled) { Show-Panel 'PanelStart'; Set-Step 2; Set-Status (T 'status.cancelled') ''; return }
         if ($s.Error) {
             Show-Panel $(if ($state.Plan -and $j.Kind -ne 'scan') { 'PanelResults' } else { 'PanelStart' })
-            Show-Error $(switch ($j.Kind) { 'scan' { 'The scan failed' } 'plan' { 'The plan failed' } 'apply' { 'Renaming failed' } default { 'Undo failed' } }) $s.Error
-            Set-Status 'Error' ''
+            Show-Error $(switch ($j.Kind) { 'scan' { T 'err.scan' } 'plan' { T 'err.plan' } 'apply' { T 'err.apply' } default { T 'err.undo' } }) $s.Error
+            Set-Status (T 'status.error') ''
             return
         }
         switch ($j.Kind) {
@@ -305,21 +359,21 @@ function Show-PathShrinkWindow {
     # ---------------------------------------------------------------- scan and plan
     function Start-Scan {
         if (-not $state.Library) { return }
-        try { $pa = Get-PlanArgs } catch { Show-Error 'Check the rules' $_; return }
+        try { $pa = Get-PlanArgs } catch { Show-Error (T 'err.rules') $_; return }
         $state.ScanArgs = @{ LibraryArgs = (Get-LibraryArgs $state.Library.Path); Exclude = @(Get-Lines $ui.OptExclude); PlanArgs = $pa }
         Add-Log ('Scan: {0}  limit {1}, margin {2}, trim {3}' -f $state.Library.Path, $pa.Limit, $pa.Margin, $pa.AllowTrim)
         Set-Step 2
-        Start-Work 'scan' $state.ScanArgs 'Scanning...'
+        Start-Work 'scan' $state.ScanArgs (T 'work.scanning')
     }
     function Start-Replan {
         if (-not $state.Inventory) { Start-Scan; return }
-        try { $pa = Get-PlanArgs } catch { Show-Error 'Check the rules' $_; return }
+        try { $pa = Get-PlanArgs } catch { Show-Error (T 'err.rules') $_; return }
         $sameScope = (@(Get-Lines $ui.OptExclude) -join '|') -eq (@($state.ScanArgs.Exclude) -join '|') -and
                      ($ui.OptPrefix.Text.Trim() -eq [string]$state.ScanArgs.LibraryArgs.Prefix)
         if (-not $sameScope) { Start-Scan; return }
         $state.ScanArgs.PlanArgs = $pa
         Add-Log ('Re-plan: limit {0}, margin {1}, trim {2}, shortest name {3}' -f $pa.Limit, $pa.Margin, $pa.AllowTrim, $pa.MinNameLength)
-        Start-Work 'plan' @{ Inventory = $state.Inventory; Issues = $state.Issues; PlanArgs = $pa } 'Working out the changes...'
+        Start-Work 'plan' @{ Inventory = $state.Inventory; Issues = $state.Issues; PlanArgs = $pa } (T 'work.planning')
     }
     function Complete-Scan($R) {
         $state.Library = $R.Library; $state.Inventory = $R.Inventory; $state.Plan = $R.Plan; $state.Issues = @($R.Issues)
@@ -328,7 +382,7 @@ function Show-PathShrinkWindow {
         Show-Panel 'PanelResults'
         Set-Step 3
         $sum = Get-PathShrinkSummary -Plan $state.Plan
-        Set-Status ('Scanned {0:N0} items' -f $sum.Items) ('{0} long paths, {1} renames planned' -f $sum.LongPaths, $sum.Renames)
+        Set-Status (T 'status.scanned' $sum.Items) (T 'status.planned' $sum.LongPaths $sum.Renames)
         Add-Log ('Plan: {0} long paths, {1} renames, {2} fixed, {3} no margin, {4} too long' -f $sum.LongPaths, $sum.Renames, $sum.Fixed, $sum.NoMargin, $sum.TooLong)
     }
     function Update-Results {
@@ -337,50 +391,52 @@ function Show-PathShrinkWindow {
         $left = $sum.NoMargin + $sum.TooLong
         $ui.TileItems.Text = '{0:N0}' -f $sum.Items
         $ui.TileLong.Text = '{0:N0}' -f $sum.LongPaths
-        $ui.TileLongLabel.Text = 'paths over {0} characters' -f $p.Target
+        $ui.TileLongLabel.Text = T 'tile.long' $p.Target
         $ui.TileFixed.Text = '{0:N0}' -f $sum.Fixed
         $ui.TileLeft.Text = '{0:N0}' -f $left
         $ui.TileLeft.Foreground = $(if ($left) { $warnBrush } else { $textBrush })
 
         $msg = @()
         if (-not $sum.LongPaths) {
-            $msg += 'No path is longer than {0} characters (limit {1}, safety margin {2}). Nothing needs to change.' -f $p.Target, $p.Limit, $p.Margin
+            $msg += T 'explain.none' $p.Target $p.Limit $p.Margin
         } else {
-            if ($sum.OverLimit) { $msg += '{0} paths are longer than {1} characters; {2} of them are over the {3}-character limit and cannot sync now.' -f $sum.LongPaths, $p.Target, $sum.OverLimit, $p.Limit }
-            else { $msg += '{0} paths are longer than {1} characters. They still sync, but are within {2} characters of the {3} limit.' -f $sum.LongPaths, $p.Target, $p.Margin, $p.Limit }
+            if ($sum.OverLimit) { $msg += T 'explain.over' $sum.LongPaths $p.Target $sum.OverLimit $p.Limit }
+            else { $msg += T 'explain.near' $sum.LongPaths $p.Target $p.Margin $p.Limit }
             if ($sum.Renames) {
-                $how = $(if ($p.AllowTrim) { 'removing spaces and, where that is not enough, trimming letters (see the How column in Pro mode)' } else { 'only removing spaces, so no letter is lost ("Tax Returns" becomes "TaxReturns")' })
-                $what = $(if ($sum.Files) { '{0} folders and {1} files' -f $sum.Folders, $sum.Files } else { '{0} folders' -f $sum.Folders })
-                $fixes = $(if ($sum.Rescued) { 'fixes {0} of them and brings {1} more back under the {2} limit' -f $sum.Fixed, $sum.Rescued, $p.Limit } else { 'fixes {0} of them' -f $sum.Fixed })
-                $msg += 'Renaming {0} {1} by {2}.' -f $what, $fixes, $how
-                if (-not $sum.Files) { $msg += 'File names are not changed.' }
+                $how = $(if ($p.AllowTrim) { T 'explain.howTrim' } else { T 'explain.howSpaces' })
+                $what = $(if ($sum.Files) { T 'explain.whatBoth' $sum.Folders $sum.Files } else { T 'explain.whatFolders' $sum.Folders })
+                $fixes = $(if ($sum.Rescued) { T 'explain.fixesRescued' $sum.Fixed $sum.Rescued $p.Limit } else { T 'explain.fixes' $sum.Fixed })
+                $msg += T 'explain.renaming' $what $fixes $how
+                if (-not $sum.Files) { $msg += T 'explain.filesKept' }
             }
-            if ($left -and -not $p.AllowTrim) { $msg += '{0} still need more room: they only fit if letters are removed from folder names.' -f $left }
-            elseif ($left) { $msg += '{0} still do not fit, because they are nested too deep. Move those folders closer to the top of the library.' -f $left }
+            if ($left -and -not $p.AllowTrim) { $msg += T 'explain.needTrim' $left }
+            elseif ($left) { $msg += T 'explain.tooDeep' $left }
         }
-        if ($sum.Unreadable) { $msg += '{0} folders could not be read and were not checked.' -f $sum.Unreadable }
+        if ($sum.Unreadable) { $msg += T 'explain.unreadable' $sum.Unreadable }
         $ui.ExplainText.Text = $msg -join ' '
         $ui.BtnTrimOffer.Visibility = $(if ($left -and -not $p.AllowTrim) { 'Visible' } else { 'Collapsed' })
 
+        foreach ($r in $p.Renames) { Add-Member -InputObject $r -NotePropertyName MethodText -NotePropertyValue (Get-Translated 'method.' $r.Method ' + ') -Force }
         $ui.GridChanges.ItemsSource = $null
         $ui.GridChanges.ItemsSource = @($p.Renames)
         Update-PathsGrid
-        $ui.GridIssues.ItemsSource = @($state.Issues)
-        $ui.TabIssues.Content = $(if ($state.Issues.Count) { 'Other sync issues ({0})' -f $state.Issues.Count } else { 'Other sync issues' })
+        $ui.GridIssues.ItemsSource = @($state.Issues | ForEach-Object {
+            New-Object psobject -Property @{ Issue = (Get-Translated 'issue.' $_.Issue ', '); TypeText = (T ('type.' + $_.Type)); Rel = $_.Rel }
+        })
+        $ui.TabIssues.Content = $(if ($state.Issues.Count) { T 'tab.issuesN' $state.Issues.Count } else { T 'tab.issues' })
         Update-ApplyButton
         Update-Tab
     }
     function Update-PathsGrid {
-        $labels = @{ Fixed = 'Fixed'; NoMargin = 'Fits, no margin'; TooLong = 'Still too long' }
         $colors = @{ Fixed = $okBrush; NoMargin = $warnBrush; TooLong = $badBrush }
         $ui.GridPaths.ItemsSource = @($state.Plan.Paths | Sort-Object @{ e = { $_.Status -eq 'Fixed' } }, @{ e = 'After'; Descending = $true } | ForEach-Object {
-            New-Object psobject -Property @{ Label = $labels[$_.Status]; Color = $colors[$_.Status]; Before = $_.Before; After = $_.After; Rel = $_.Rel; NewRel = $_.NewRel }
+            New-Object psobject -Property @{ Label = (T ('status.' + $_.Status)); Color = $colors[$_.Status]; Before = $_.Before; After = $_.After; Rel = $_.Rel; NewRel = $_.NewRel }
         })
     }
     function Update-ApplyButton {
         $n = @($state.Plan.Renames | Where-Object { $_.Selected }).Count
         $ui.BtnApply.IsEnabled = $n -gt 0
-        $ui.BtnApply.Content = $(if ($n) { '_Review and apply {0} changes' -f $n } else { 'Nothing to apply' })
+        $ui.BtnApply.Content = $(if ($n) { T 'results.apply' $n } else { T 'results.apply0' })
     }
     function Update-Tab {
         $pro = [bool]$ui.ModePro.IsChecked
@@ -391,9 +447,9 @@ function Show-PathShrinkWindow {
         $ui.LogBox.Visibility = $(if ($ui.TabLog.IsChecked) { 'Visible' } else { 'Collapsed' })
         $empty = ''
         if ($state.Plan) {
-            if ($ui.TabChanges.IsChecked -and -not $state.Plan.Renames.Count) { $empty = $(if ($state.Plan.Paths.Count) { 'No automatic change is possible.' } else { 'Nothing to change.' }) }
-            if ($ui.TabPaths.IsChecked -and -not $state.Plan.Paths.Count) { $empty = 'No long paths.' }
-            if ($ui.TabIssues.IsChecked -and -not $state.Issues.Count) { $empty = 'No other sync issues found: no reserved names, lock files or characters OneDrive refuses.' }
+            if ($ui.TabChanges.IsChecked -and -not $state.Plan.Renames.Count) { $empty = $(if ($state.Plan.Paths.Count) { T 'empty.noAuto' } else { T 'empty.nothing' }) }
+            if ($ui.TabPaths.IsChecked -and -not $state.Plan.Paths.Count) { $empty = T 'empty.noPaths' }
+            if ($ui.TabIssues.IsChecked -and -not $state.Issues.Count) { $empty = T 'empty.noIssues' }
         }
         $ui.EmptyText.Text = $empty
         $ui.EmptyText.Visibility = $(if ($empty) { 'Visible' } else { 'Collapsed' })
@@ -405,43 +461,43 @@ function Show-PathShrinkWindow {
         if (-not $sel.Count) { return }
         $folders = @($sel | Where-Object { $_.Type -eq 'Folder' }).Count; $files = $sel.Count - $folders
         $lines = @()
-        $lines += '{0} new names in {1}.' -f $(if ($files) { '{0} folders and {1} files get' -f $folders, $files } else { '{0} folders get' -f $folders }), $state.Library.Path
+        $lines += $(if ($files) { T 'confirm.both' $folders $files $state.Library.Path } else { T 'confirm.folders' $folders $state.Library.Path })
         if ($state.Plan.AllowTrim -and @($sel | Where-Object { $_.Method -like '*trim*' }).Count) {
-            $lines += @{ Text = 'Some names lose letters. Check the New name column before you continue.'; Color = $warnBrush }
+            $lines += @{ Text = (T 'confirm.trim'); Color = $warnBrush }
         }
-        $lines += 'File contents and dates do not change. OneDrive uploads the new names by itself.'
-        $lines += 'Desktop shortcuts, Quick access pins, recent-file lists and copied links that point inside these folders stop working, as with any rename.'
-        $lines += 'Close files that are open from these folders first. An undo file is saved so you can restore the original names.'
+        $lines += T 'confirm.content'
+        $lines += T 'confirm.links'
+        $lines += T 'confirm.close'
         Set-Step 4
-        Show-Dialog -Title ('Rename {0} items?' -f $sel.Count) -Lines $lines -Yes ('Rename {0} items' -f $sel.Count) -No 'Cancel' -OnYes {
+        Show-Dialog -Title (T 'confirm.title' $sel.Count) -Lines $lines -Yes (T 'confirm.yes' $sel.Count) -No (T 'dlg.cancel') -OnYes {
             Add-Log ('Apply: {0} renames' -f @($state.Plan.Renames | Where-Object { $_.Selected }).Count)
-            Start-Work 'apply' @{ Plan = $state.Plan } 'Renaming...'
+            Start-Work 'apply' @{ Plan = $state.Plan } (T 'work.renaming')
         }
     }
     function Complete-Apply($R) {
         $state.Result = $R
         Set-Step 5
         $clean = -not $R.Failed -and -not $R.StillLong.Count
-        $ui.DoneTitle.Text = $(if ($clean) { 'All paths fit now' } elseif (-not $R.Failed -and -not $R.StillOverLimit) { 'Done, with some paths still close to the limit' } else { 'Finished with warnings' })
-        $t = @('Renamed {0} items. Checked on disk: {1} of {2} paths are now under {3} characters.' -f $R.Renamed, $R.VerifiedFixed, $R.ExpectedFixed, $state.Plan.Target)
-        if ($R.Failed) { $t += '{0} items could not be renamed, usually because a file is open in another program or access is denied. Close them and scan again.' -f $R.Failed }
-        if ($R.StillLong.Count) { $t += '{0} paths are still over {1} characters ({2} over the {3} limit). Scan again for the next step.' -f $R.StillLong.Count, $state.Plan.Target, $R.StillOverLimit, $state.Plan.Limit }
-        $t += 'OneDrive syncs the new names in the next few minutes; the "path too long" notice then clears by itself.'
+        $ui.DoneTitle.Text = $(if ($clean) { T 'done.allFit' } elseif (-not $R.Failed -and -not $R.StillOverLimit) { T 'done.close' } else { T 'done.warn' })
+        $t = @(T 'done.renamed' $R.Renamed $R.VerifiedFixed $R.ExpectedFixed $state.Plan.Target)
+        if ($R.Failed) { $t += T 'done.failed' $R.Failed }
+        if ($R.StillLong.Count) { $t += T 'done.still' $R.StillLong.Count $state.Plan.Target $R.StillOverLimit $state.Plan.Limit }
+        $t += T 'done.sync'
         $ui.DoneText.Text = $t -join "`n`n"
         $ui.BtnUndo.IsEnabled = [bool]$R.UndoFile
         Show-Panel 'PanelDone'
-        Set-Status ('Renamed {0}, failed {1}' -f $R.Renamed, $R.Failed) ('Undo file: {0}' -f $R.UndoFile)
+        Set-Status (T 'status.renamed' $R.Renamed $R.Failed) (T 'status.undoFile' $R.UndoFile)
         Add-Log ('Applied: renamed {0}, failed {1}, still long {2}. Undo file {3}' -f $R.Renamed, $R.Failed, $R.StillLong.Count, $R.UndoFile)
         foreach ($x in $R.Results) { if ($x.Result -ne 'OK') { Add-Log ('  {0}: {1}' -f $x.OriginalPath, $x.Result) } }
     }
     function Confirm-Undo([string]$File) {
         $n = @(Import-Csv -LiteralPath $File | Where-Object { $_.Result -eq 'OK' }).Count
-        Show-Dialog -Title ('Restore {0} original names?' -f $n) -Lines @(
-            'Every item listed in this undo file gets its original name back.',
+        Show-Dialog -Title (T 'undo.title' $n) -Lines @(
+            (T 'undo.body'),
             @{ Text = $File; Mono = $true; Color = $text2 },
-            'Close files that are open from these folders first.') -Yes 'Restore names' -No 'Cancel' -OnYes {
+            (T 'undo.close')) -Yes (T 'undo.yes') -No (T 'dlg.cancel') -OnYes {
             Add-Log ('Undo: {0}' -f $state.UndoFile)
-            Start-Work 'undo' @{ UndoFile = $state.UndoFile } 'Restoring names...'
+            Start-Work 'undo' @{ UndoFile = $state.UndoFile } (T 'work.restoring')
         }
         $state.UndoFile = $File
     }
@@ -450,10 +506,10 @@ function Show-PathShrinkWindow {
         foreach ($x in $R.Results) { if ($x.Result -ne 'OK') { Add-Log ('  {0}: {1}' -f $x.Path, $x.Result) } }
         $state.Plan = $null; $state.Inventory = $null
         Show-Panel 'PanelStart'; Set-Step 2
-        Set-Status ('Restored {0} names' -f $R.Restored) ''
-        $lines = @('Restored {0} names.' -f $R.Restored)
-        if ($R.Failed) { $lines += @{ Text = ('{0} could not be restored; see the log.' -f $R.Failed); Color = $warnBrush } }
-        Show-Dialog -Title 'Undo finished' -Lines $lines
+        Set-Status (T 'status.restored' $R.Restored) ''
+        $lines = @(T 'undo.restored' $R.Restored)
+        if ($R.Failed) { $lines += @{ Text = (T 'undo.failed' $R.Failed); Color = $warnBrush } }
+        Show-Dialog -Title (T 'undo.doneTitle') -Lines $lines
     }
     function Get-CliCommand {
         $c = 'Invoke-PathShrink'
@@ -479,6 +535,14 @@ function Show-PathShrinkWindow {
         Update-Tab
         $win.Dispatcher.BeginInvoke([Windows.Threading.DispatcherPriority]::Loaded, [Action] { foreach ($b in (Get-Buttons $win)) { Set-CutShape $b } }) | Out-Null
     }
+    function Set-Language([string]$Code) {
+        if ($state.Loading -or $Code -eq $lang) { return }
+        Save-PathShrinkLanguage $Code
+        # The texts are baked in when the window is built, so it is built again; the folder
+        # and the mode carry over, a scan in progress or its results do not.
+        $state.Relaunch = @{ Language = $Code; Pro = [bool]$ui.ModePro.IsChecked; Path = $(if ($state.Library) { $state.Library.Path } else { $Path }) }
+        $win.Close()
+    }
 
     # ---------------------------------------------------------------- wiring
     foreach ($b in (Get-Buttons $win)) {
@@ -495,8 +559,8 @@ function Show-PathShrinkWindow {
     $win.Add_Closing({
         param($s, $e)
         if ($state.Job -and ($state.Job.Kind -eq 'apply' -or $state.Job.Kind -eq 'undo')) {
-            $e.Cancel = $true
-            Show-Dialog -Title 'Renaming in progress' -Lines @('Wait until it finishes, so the undo file is complete.')
+            $e.Cancel = $true; $state.Relaunch = $null
+            Show-Dialog -Title (T 'busy.title') -Lines @(T 'busy.body')
         } elseif ($state.Job) { try { $state.Job.PS.Stop() } catch { Write-Verbose $_.Exception.Message } }
     })
     $win.Add_SourceInitialized({
@@ -515,13 +579,16 @@ function Show-PathShrinkWindow {
         if ($files -and (Test-Path -LiteralPath $files[0] -PathType Container)) { [void](Select-Library $files[0]) }
     })
 
+    $ui.LangEN.Add_Checked({ Set-Language 'en' })
+    $ui.LangES.Add_Checked({ Set-Language 'es' })
+    $ui.LangPT.Add_Checked({ Set-Language 'pt' })
     $ui.ModeBasic.Add_Checked({ Set-Mode $false; Add-Log 'Mode: Basic' })
     $ui.ModePro.Add_Checked({ Set-Mode $true; Add-Log 'Mode: Pro' })
     foreach ($t in 'TabChanges', 'TabPaths', 'TabIssues', 'TabLog') { $ui[$t].Add_Checked({ Update-Tab }) }
 
     $ui.BtnFolder.Add_Click({
         $d = New-Object System.Windows.Forms.FolderBrowserDialog
-        $d.Description = 'Folder in OneDrive or a synced SharePoint library'
+        $d.Description = T 'folder.dialog'
         if ($state.Library) { $d.SelectedPath = $state.Library.Path }
         if ($d.ShowDialog() -ne 'OK') { return }
         $state.Manual = $null
@@ -531,7 +598,7 @@ function Show-PathShrinkWindow {
     $ui.BtnRescan.Add_Click({ Start-Scan })
     $ui.BtnAgain.Add_Click({ Start-Scan })
     $ui.BtnCancel.Add_Click({
-        if ($state.Job) { $state.Job.Cancelled = $true; $ui.WorkDetail.Text = 'Stopping...'; [void]$state.Job.PS.BeginStop($null, $null); Add-Log 'Scan cancelled' }
+        if ($state.Job) { $state.Job.Cancelled = $true; $ui.WorkDetail.Text = T 'work.stopping'; [void]$state.Job.PS.BeginStop($null, $null); Add-Log 'Scan cancelled' }
     })
     $ui.BtnTrimOffer.Add_Click({
         $ui.OptTrim.IsChecked = $true
@@ -567,9 +634,9 @@ function Show-PathShrinkWindow {
             $f = Export-PathShrinkReport -Plan $state.Plan -SyncIssues $state.Issues
             [IO.File]::WriteAllLines((Join-Path $f 'gui.log'), $state.LogLines)
             Add-Log ('Report: {0}' -f $f)
-            Set-Status ('Report saved to {0}' -f $f)
+            Set-Status (T 'status.report' $f)
             Start-Process explorer.exe -ArgumentList ('"{0}"' -f $f)
-        } catch { Show-Error 'Could not write the report' $_ }
+        } catch { Show-Error (T 'err.report') $_ }
     })
     $ui.BtnReports.Add_Click({ if ($state.Result -and $state.Result.ReportFolder) { Start-Process explorer.exe -ArgumentList ('"{0}"' -f $state.Result.ReportFolder) } })
     $ui.BtnOpenReports.Add_Click({
@@ -580,11 +647,11 @@ function Show-PathShrinkWindow {
     $ui.BtnUndo.Add_Click({ if ($state.Result -and $state.Result.UndoFile) { Confirm-Undo $state.Result.UndoFile } })
     $ui.BtnUndoFile.Add_Click({
         $d = New-Object Microsoft.Win32.OpenFileDialog
-        $d.Filter = 'Undo file (undo.csv)|undo.csv|CSV files (*.csv)|*.csv'
+        $d.Filter = T 'undo.filter'
         $rep = Join-Path $env:LOCALAPPDATA 'PathShrink\Reports'
         if (Test-Path -LiteralPath $rep) { $d.InitialDirectory = $rep }
         if ($d.ShowDialog($win)) {
-            try { Confirm-Undo $d.FileName } catch { Show-Error 'Could not read the undo file' $_ }
+            try { Confirm-Undo $d.FileName } catch { Show-Error (T 'err.undoRead') $_ }
         }
     })
     $ui.BtnEnv.Add_Click({
@@ -593,13 +660,13 @@ function Show-PathShrinkWindow {
         foreach ($p in $envInfo.PSObject.Properties) { Add-Log ('  {0,-18} {1}' -f $p.Name, $p.Value) }
         if ($envInfo.Elevated) { Add-Log '  Note: running elevated. Run as the OneDrive user without elevation if the folder belongs to another profile.' }
         $ui.TabLog.IsChecked = $true
-        if ($ui.PanelResults.Visibility -ne 'Visible') { Show-Dialog -Title 'This computer' -Lines @($envInfo.PSObject.Properties | ForEach-Object { @{ Text = ('{0,-18} {1}' -f $_.Name, $_.Value); Mono = $true; Color = $textBrush } }) }
+        if ($ui.PanelResults.Visibility -ne 'Visible') { Show-Dialog -Title (T 'env.title') -Lines @($envInfo.PSObject.Properties | ForEach-Object { @{ Text = ('{0,-18} {1}' -f $_.Name, $_.Value); Mono = $true; Color = $textBrush } }) }
     })
     $ui.BtnCopyCli.Add_Click({
         $cmd = Get-CliCommand
         [Windows.Clipboard]::SetText($cmd)
         Add-Log ('Copied: {0}' -f $cmd)
-        Set-Status 'Command copied to the clipboard'
+        Set-Status (T 'status.copied')
     })
 
     # ---------------------------------------------------------------- start
@@ -608,8 +675,9 @@ function Show-PathShrinkWindow {
     Set-Step 1
     Set-Mode ([bool]($Pro -or $ScreenshotState -eq 'pro'))
     if ($Pro -or $ScreenshotState -eq 'pro') { $ui.ModePro.IsChecked = $true }
-    Add-Log ('PathShrink {0} on PowerShell {1}' -f (Get-PathShrinkVersion), $PSVersionTable.PSVersion)
+    Add-Log ('PathShrink {0} on PowerShell {1}, language {2}' -f (Get-PathShrinkVersion), $PSVersionTable.PSVersion, $lang)
     [void](Select-Library $Path)
+    $state.Loading = $false
 
     if ($Screenshot) {
         # Off-screen render for documentation and visual checks. Runs the real scan and plan.
@@ -645,4 +713,5 @@ function Show-PathShrinkWindow {
         })
     }
     [void]$win.ShowDialog()
+    $state.Relaunch
 }

@@ -792,10 +792,16 @@ function Start-PathShrink {
         [switch]$Pro,
         [string]$Root,
         [string]$Upn,
-        [string]$Prefix
+        [string]$Prefix,
+        [ValidateSet('en', 'es', 'pt')][string]$Language
     )
     . (Join-Path $script:ModuleRoot 'gui\Gui.ps1')
-    Show-PathShrinkWindow @PSBoundParameters
+    $a = @{} + $PSBoundParameters
+    do {
+        # Changing the language rebuilds the window; it reopens on the same folder and mode.
+        $next = Show-PathShrinkWindow @a
+        if ($next) { $a.Language = $next.Language; $a.Pro = [switch]$next.Pro; if ($next.Path) { $a.Path = $next.Path } }
+    } while ($next)
 }
 
 Export-ModuleMember -Function Get-PathShrinkLibrary, Get-PathShrinkAccount, Get-PathShrinkSyncMount, Get-PathShrinkInventory,
