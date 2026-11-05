@@ -315,6 +315,52 @@ Describe 'Apply, verify and undo' {
         $res.Renamed | Should -Be ($plan.Renames.Count - 1)
         ($res.Results | Where-Object { $_.Result -like 'ERROR*' }).OriginalName | Should -Be $victim.OriginalName
     }
+    It 'names the program holding an item open, closes it and retries only the failed items' {
+        $lib = Get-PathShrinkLibrary -Root $root -Upn $TestUpn
+        $plan = New-PathShrinkPlan -Inventory (Get-PathShrinkInventory -Library $lib) -Limit 260 -Margin 0
+        $file = Join-Path $root ((Get-DeepFiles)[0])
+        # Another process keeps the deepest file open without sharing delete, like Word does.
+        $holder = Join-Path "$root-reports" 'hold.ps1'
+        $ready = Join-Path "$root-reports" 'ready.txt'
+        New-Item -ItemType Directory -Path "$root-reports" -Force | Out-Null
+        Set-Content -LiteralPath $holder -Encoding ASCII -Value @(
+            'param($f, $r)'
+            '$h = [IO.File]::Open(''\\?\'' + $f, ''Open'', ''Read'', ''Read'')'
+            'Set-Content -LiteralPath $r -Value ok'
+            'Start-Sleep -Seconds 120'
+        )
+        $shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        $p = Start-Process -FilePath $shell -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -File "{0}" "{1}" "{2}"' -f $holder, $file, $ready) -WindowStyle Hidden -PassThru
+        try {
+            $until = (Get-Date).AddSeconds(30)
+            while (-not (Test-Path -LiteralPath $ready) -and (Get-Date) -lt $until) { Start-Sleep -Milliseconds 200 }
+            @(Get-PathShrinkLock -Path $file).Id | Should -Contain $p.Id
+            $run = "$root-reports\run"
+            $res = Invoke-PathShrinkPlan -Plan $plan -ReportFolder $run -Confirm:$false
+            $res.Failed | Should -BeGreaterThan 0
+            $res.InUse | Should -Be $res.Failed
+            @($res.Locks).Id | Should -Contain $p.Id
+            ($res.Results | Where-Object { $_.Reason -eq 'InUse' } | Select-Object -First 1).LockedBy | Should -Match ([string]$p.Id)
+            $closed = @(Stop-PathShrinkLock -Lock @($res.Locks | Where-Object { $_.Id -eq $p.Id }) -Force -TimeoutSeconds 2 -Confirm:$false)
+            $closed[0].Closed | Should -BeTrue
+            $again = Invoke-PathShrinkPlan -Plan $plan -ReportFolder $run -Retry -Confirm:$false
+            $again.Failed | Should -Be 0
+            $again.Renamed | Should -Be @($plan.Renames | Where-Object { $_.Selected }).Count
+            @(Import-Csv (Join-Path $run 'renames.csv')).Count | Should -Be $again.Renamed
+            (Get-Content (Join-Path $run 'run.json') -Raw | ConvertFrom-Json).retries | Should -Be 1
+            # One revert undoes both tries.
+            $u = Undo-PathShrink -UndoFile $again.UndoFile -Confirm:$false
+            $u.Failed | Should -Be 0
+            Get-TestRels $root | Should -Be $original
+        } finally { if (-not $p.HasExited) { $p.Kill() } }
+    }
+    It 'tells a permission problem apart from a file in use' {
+        $e = New-Object Management.Automation.ErrorRecord ((New-Object UnauthorizedAccessException 'Access to the path is denied.')), 'x', 'PermissionDenied', $null
+        & (Get-Module PathShrink) { param($x) Get-RenameFailReason $x } $e | Should -Be 'Denied'
+        $io = New-Object IO.IOException 'The process cannot access the file because it is being used by another process.', -2147024864
+        $e = New-Object Management.Automation.ErrorRecord $io, 'x', 'WriteError', $null
+        & (Get-Module PathShrink) { param($x) Get-RenameFailReason $x } $e | Should -Be 'InUse'
+    }
 }
 
 Describe 'Names typed by hand' {

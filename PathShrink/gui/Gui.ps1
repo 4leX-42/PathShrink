@@ -72,6 +72,50 @@ namespace PathShrinkNative {
 }
 '@
 
+function Get-PathShrinkLocation {
+    # Each OneDrive for work or school account and each synced SharePoint library outside them.
+    $list = @()
+    $accounts = @(Get-PathShrinkAccount | Where-Object { $_.LocalPath -and (Test-Path -LiteralPath $_.LocalPath) })
+    foreach ($a in $accounts) { $list += [pscustomobject]@{ Label = $(if ($a.Email) { 'OneDrive  ' + $a.Email } else { 'OneDrive  ' + $a.TenantName }); Path = $a.LocalPath } }
+    foreach ($m in @(Get-PathShrinkSyncMount)) {
+        if (-not $m.LocalPath -or -not (Test-Path -LiteralPath $m.LocalPath)) { continue }
+        $inside = $false
+        foreach ($x in $list) { if ($m.LocalPath -eq $x.Path -or $m.LocalPath.StartsWith($x.Path + '\', [StringComparison]::OrdinalIgnoreCase)) { $inside = $true } }
+        if (-not $inside) { $list += [pscustomobject]@{ Label = 'SharePoint  ' + (Split-Path $m.LocalPath -Leaf); Path = $m.LocalPath } }
+    }
+    $list
+}
+
+function ConvertTo-ArgText([string]$Value) {
+    # One command-line argument for CommandLineToArgvW: quoted, a trailing backslash doubled.
+    if ($Value -match '^-[A-Za-z]+$') { return $Value }
+    $v = $Value -replace '"', ''
+    if ($v.EndsWith('\')) { $v += '\' }
+    '"' + $v + '"'
+}
+
+function Start-PathShrinkElevated([hashtable]$Arguments) {
+    # Opens PathShrink again as administrator (UAC prompt) with the same folder, mode and language.
+    $list = @()
+    foreach ($k in 'Language', 'Path', 'Root', 'Upn', 'Prefix') { if ($Arguments.ContainsKey($k)) { $list += '-' + $k; $list += [string]$Arguments[$k] } }
+    if ($Arguments['Pro']) { $list += '-Pro' }
+    $exe = Join-Path (Split-Path $script:ModuleRoot -Parent) 'PathShrink.exe'
+    $ps1 = Join-Path (Split-Path $script:ModuleRoot -Parent) 'PathShrink.ps1'
+    $line = @($list | ForEach-Object { ConvertTo-ArgText $_ }) -join ' '
+    if (Test-Path -LiteralPath $exe) { Start-Process -FilePath $exe -ArgumentList $line -Verb RunAs | Out-Null; return }
+    $shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    if (Test-Path -LiteralPath $ps1) {
+        Start-Process -FilePath $shell -ArgumentList ('-NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File {0} {1}' -f (ConvertTo-ArgText $ps1), $line) -Verb RunAs | Out-Null
+        return
+    }
+    # Installed as a module only (PowerShell Gallery): import it by path in the new process.
+    $sq = { param($s) "'" + ($s -replace "'", "''") + "'" }
+    $cmd = 'Import-Module {0}; Start-PathShrink' -f (& $sq (Join-Path $script:ModuleRoot 'PathShrink.psd1'))
+    foreach ($k in 'Language', 'Path', 'Root', 'Upn', 'Prefix') { if ($Arguments.ContainsKey($k)) { $cmd += ' -{0} {1}' -f $k, (& $sq ([string]$Arguments[$k] -replace '"', '')) } }
+    if ($Arguments['Pro']) { $cmd += ' -Pro' }
+    Start-Process -FilePath $shell -ArgumentList ('-NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -Command "{0}"' -f $cmd) -Verb RunAs | Out-Null
+}
+
 function Select-PathShrinkFolder {
     param($Owner, [string]$Title, [string]$Start)
     $wpf = 'Microsoft.Win32.OpenFolderDialog' -as [type]
@@ -186,7 +230,7 @@ function Show-PathShrinkWindow {
             'BtnExport', 'BtnRescan', 'BtnPlan', 'BtnApply',
             'PanelPlan', 'BtnPlanBack', 'BtnCrumbSummary', 'PlanSummary', 'PlanSearch', 'PlanSearchHint', 'PlanSelectTools', 'BtnSelAll', 'BtnSelNone', 'PlanCount',
             'PlanList', 'PlanEmpty', 'BtnPlanSummary', 'BtnPlanApply',
-            'PanelDone', 'DoneIcon', 'DoneTitle', 'DoneText', 'DoneRenamed', 'DoneVerified', 'DoneStill', 'DoneFailed', 'RevertCard', 'RevertText', 'BtnUndo', 'BtnReports', 'BtnAgain',
+            'PanelDone', 'DoneIcon', 'DoneTitle', 'DoneText', 'DoneRenamed', 'DoneVerified', 'DoneStill', 'DoneFailed', 'RevertCard', 'RevertText', 'BtnUndo', 'BtnFixFailed', 'BtnReports', 'BtnAgain',
             'PanelHistory', 'BtnHistBack', 'HistList', 'HistEmpty', 'HistDetail', 'HistPick', 'HistWhen', 'HistFolder', 'HistMeta', 'HistCheckText', 'HistCounts',
             'HistReady', 'HistAlready', 'HistBlocked', 'HistBlockedList', 'BtnHistRevert', 'BtnHistCheck', 'BtnHistReport', 'BtnUndoFile', 'BtnOpenReports',
             'PanelDemo', 'BtnDemoBack', 'DemoEx1', 'DemoEx2', 'DemoEx3', 'DemoS0', 'DemoS1', 'DemoS2', 'DemoS3', 'DemoStepInfo', 'BtnDemoPlay', 'DemoLen', 'DemoRuler', 'DemoBar',
@@ -203,6 +247,7 @@ function Show-PathShrinkWindow {
         View = 'PanelStart'; Back = $null; Page = 0; CompareItems = @(); RenameMap = @{}; PlanItems = @()
         History = @(); HistRun = $null; Check = $null; PickAfterHistory = $null; HelpEntries = @{}; HelpKey = $null; HelpFocus = $null
         Demo = $null; Editor = $null; PlayStep = 0; SettingPath = $false; Sorted = @(); SortedFor = $null; RenameMapFor = $null; PlanItemsFor = $null
+        LastApply = $null; FailLocks = @(); FailOpen = @(); PickerChoices = @(); PickerStart = $null
     }
     $brush = { param($hex) $c = New-Object Windows.Media.BrushConverter; $b = $c.ConvertFromString($hex); $b.Freeze(); $b }
     $gold = & $brush '#C9A96E'; $goldHi = & $brush '#E2C48A'; $text2 = & $brush '#B4B4BA'; $text3 = & $brush '#8C8C94'; $lineBrush = & $brush '#303036'
@@ -479,6 +524,17 @@ function Show-PathShrinkWindow {
                     $f = Export-PathShrinkReport -Plan $A.Plan -Folder $A.ReportFolder -SyncIssues $A.Issues
                     $Sync.Result = Invoke-PathShrinkPlan -Plan $A.Plan -ReportFolder $f -Confirm:$false -OnProgress { param($i, $t) $Sync.Count = $i; $Sync.Total = $t }
                 }
+                'retry' {
+                    # Close the programs holding the failed items (asked politely unless Force), then try those items again.
+                    if (@($A.Close).Count) {
+                        $Sync.Phase = 'close'
+                        $st = @(Stop-PathShrinkLock -Lock $A.Close -Force:$A.Force -Confirm:$false)
+                        $open = @($st | Where-Object { $_.CanClose -and -not $_.Closed })
+                        if ($open.Count -and -not $A.Force) { $Sync.Result = @{ StillOpen = $open }; return }
+                    }
+                    $Sync.Phase = 'apply'
+                    $Sync.Result = Invoke-PathShrinkPlan -Plan $A.Plan -ReportFolder $A.ReportFolder -Retry -Confirm:$false -OnProgress { param($i, $t) $Sync.Count = $i; $Sync.Total = $t }
+                }
                 'check' { $Sync.Result = Test-PathShrinkUndo -UndoFile $A.UndoFile }
                 'undo' { $Sync.Result = Undo-PathShrink -UndoFile $A.UndoFile -Confirm:$false }
             }
@@ -496,7 +552,7 @@ function Show-PathShrinkWindow {
         if (-not $Quiet) {
             $ui.WorkTitle.Text = $Title
             $ui.WorkDetail.Text = ''
-            $ui.WorkNote.Text = $(switch ($Kind) { 'apply' { T 'work.note.apply' } 'undo' { T 'work.note.undo' } default { T 'work.note.read' } })
+            $ui.WorkNote.Text = $(switch ($Kind) { 'apply' { T 'work.note.apply' } 'retry' { T 'work.note.apply' } 'undo' { T 'work.note.undo' } default { T 'work.note.read' } })
             $ui.WorkBar.IsIndeterminate = $true
             $ui.BtnCancel.Visibility = $(if ($Kind -eq 'scan' -or $Kind -eq 'plan') { 'Visible' } else { 'Collapsed' })
             Show-View 'PanelWork'
@@ -518,7 +574,8 @@ function Show-PathShrinkWindow {
                 if ($s.Phase -eq 'plan') { $ui.WorkDetail.Text = T 'work.readPlan' $s.Count }
                 else { $ui.WorkDetail.Text = T 'work.read' $s.Count }
             }
-            'apply' {
+            { $_ -eq 'retry' -and $s.Phase -eq 'close' } { $ui.WorkDetail.Text = T 'work.closing' }
+            { $_ -eq 'apply' -or ($_ -eq 'retry' -and $s.Phase -eq 'apply') } {
                 if ($s.Total) { $ui.WorkBar.IsIndeterminate = $false; $ui.WorkBar.Maximum = $s.Total; $ui.WorkBar.Value = $s.Count }
                 $ui.WorkDetail.Text = $(if ($s.Count -ge $s.Total -and $s.Total) { T 'work.checking' } else { T 'work.renamed' $s.Count $s.Total })
             }
@@ -532,8 +589,8 @@ function Show-PathShrinkWindow {
         Set-Busy $false
         if ($j.Cancelled) { Show-View 'PanelStart'; Set-Step 2; Set-Status (T 'status.cancelled') ''; return }
         if ($s.Error) {
-            if (-not $j.Quiet) { Show-View $(if ($j.Kind -eq 'undo') { 'PanelHistory' } elseif ($state.Plan -and $j.Kind -ne 'scan') { 'PanelResults' } else { 'PanelStart' }) }
-            Show-Error $(switch ($j.Kind) { 'scan' { T 'err.scan' } 'plan' { T 'err.plan' } 'apply' { T 'err.apply' } 'check' { T 'err.check' } default { T 'err.undo' } }) $s.Error
+            if (-not $j.Quiet) { Show-View $(if ($j.Kind -eq 'undo') { 'PanelHistory' } elseif ($j.Kind -eq 'retry') { 'PanelDone' } elseif ($state.Plan -and $j.Kind -ne 'scan') { 'PanelResults' } else { 'PanelStart' }) }
+            Show-Error $(switch ($j.Kind) { 'scan' { T 'err.scan' } 'plan' { T 'err.plan' } 'apply' { T 'err.apply' } 'retry' { T 'err.apply' } 'check' { T 'err.check' } default { T 'err.undo' } }) $s.Error
             Set-Status (T 'status.error') ''
             return
         }
@@ -541,6 +598,11 @@ function Show-PathShrinkWindow {
             'scan' { Complete-Scan $s.Result }
             'plan' { Complete-Scan $s.Result }
             'apply' { Complete-Apply $s.Result }
+            'retry' {
+                if ($s.Result -is [hashtable] -and $s.Result.ContainsKey('StillOpen')) { Show-View 'PanelDone'; Confirm-ForceClose $s.Result.StillOpen }
+                elseif ($s.Result) { Complete-Apply $s.Result }
+                else { Show-View 'PanelDone' }
+            }
             'check' { Complete-Check $s.Result }
             'undo' { Complete-Undo $s.Result }
         }
@@ -1036,14 +1098,18 @@ function Show-PathShrinkWindow {
     }
     function Complete-Apply($R) {
         $state.Result = $R
+        # The plan is kept for a retry of the items that failed (programs closed, or as administrator).
+        if ($state.Plan) { $state.LastApply = @{ Plan = $state.Plan } }
+        $plan = $state.LastApply.Plan
         Set-Step 5
         $clean = -not $R.Failed -and -not $R.StillLong.Count
         $ui.DoneTitle.Text = $(if ($clean) { T 'done.allFit' } elseif (-not $R.Failed -and -not $R.StillOverLimit) { T 'done.close' } else { T 'done.warn' })
         $ui.DoneIcon.Text = $(if ($clean) { [string][char]0xE73E } else { [string][char]0xE7BA })
         $ui.DoneIcon.Foreground = $(if ($clean) { $okBrush } else { $warnBrush })
-        $t = @(T 'done.renamed' $R.Renamed $R.VerifiedFixed $R.ExpectedFixed $state.Plan.Target)
+        $t = @(T 'done.renamed' $R.Renamed $R.VerifiedFixed $R.ExpectedFixed $plan.Target)
         if ($R.Failed) { $t += T 'done.failed' $R.Failed }
-        if ($R.StillLong.Count) { $t += T 'done.still' $R.StillLong.Count $state.Plan.Target $R.StillOverLimit $state.Plan.Limit }
+        if ($R.StillLong.Count) { $t += T 'done.still' $R.StillLong.Count $plan.Target $R.StillOverLimit $plan.Limit }
+        $ui.BtnFixFailed.Visibility = $(if ($R.Failed) { 'Visible' } else { 'Collapsed' })
         $t += T 'done.sync'
         $ui.DoneText.Text = $t -join "`n"
         $ui.DoneRenamed.Text = '{0:N0}' -f $R.Renamed
@@ -1057,7 +1123,83 @@ function Show-PathShrinkWindow {
         Show-View 'PanelDone'
         Set-Status (T 'status.renamed' $R.Renamed $R.Failed) (T 'status.report' $R.ReportFolder)
         Add-Log ('Applied: renamed {0}, failed {1}, still long {2}. Undo file {3}' -f $R.Renamed, $R.Failed, $R.StillLong.Count, $R.UndoFile)
-        foreach ($x in $R.Results) { if ($x.Result -ne 'OK') { Add-Log ('  {0}: {1}' -f $x.OriginalPath, $x.Result) } }
+        foreach ($x in $R.Results) { if ($x.Result -ne 'OK') { Add-Log ('  {0}: {1}{2}' -f $x.OriginalPath, $x.Result, $(if ($x.LockedBy) { ' Open in: ' + $x.LockedBy } else { '' })) } }
+        if ($R.Failed -and -not $Screenshot) { Show-FailHelp $R }
+    }
+
+    # ---------------------------------------------------------------- items that failed
+    function Get-LockLabel($L) { '{0}  ({1}, {2})' -f $(if ($L.Title) { $L.Title } else { $L.Name }), $L.Name, $L.Id }
+    function Show-FailHelp($R) {
+        # What blocked the failed items, and the one action that fixes the most of them.
+        if (-not $R -or -not $R.Failed) { return }
+        $state.FailLocks = @($R.Locks | Where-Object { $_.CanClose })
+        $fixed = @($R.Locks | Where-Object { -not $_.CanClose })
+        $lines = @()
+        if ($R.InUse) {
+            $lines += @{ Text = (T 'fail.inUse' $R.InUse); Bold = $true }
+            foreach ($l in $R.Locks) { $lines += @{ Text = (Get-LockLabel $l); Mono = $true; Color = $(if ($l.CanClose) { $text2 } else { $warnBrush }) } }
+            if (-not @($R.Locks).Count) { $lines += T 'fail.unknown' }
+            if ($fixed.Count) { $lines += @{ Text = (T 'fail.cannotClose'); Color = $text2 } }
+        }
+        if ($R.Denied) {
+            $lines += @{ Text = (T 'fail.denied' $R.Denied); Bold = $true }
+            $lines += $(if ($R.Elevated) { T 'fail.deniedAdmin' } else { T 'fail.deniedHint' })
+        }
+        $other = $R.Failed - $R.InUse - $R.Denied
+        if ($other -gt 0) { $lines += T 'fail.other' $other }
+        $title = T 'fail.title' $R.Failed
+        if ($state.FailLocks.Count) {
+            $lines += @{ Text = (T 'fail.save'); Color = $warnBrush }
+            Show-Dialog -Title $title -Lines $lines -Yes (T 'fail.closeRetry') -No (T 'dlg.cancel') -OnYes { Start-Retry -Close $state.FailLocks }
+        } elseif ($R.Denied -and -not $R.Elevated) {
+            Show-Dialog -Title $title -Lines $lines -Yes (T 'fail.admin') -No (T 'dlg.cancel') -OnYes { Restart-Elevated }
+        } elseif ($R.InUse) {
+            Show-Dialog -Title $title -Lines $lines -Yes (T 'fail.retry') -No (T 'dlg.cancel') -OnYes { Start-Retry }
+        } else {
+            Show-Dialog -Title $title -Lines $lines
+        }
+    }
+    function Start-Retry([object[]]$Close = @(), [switch]$Force) {
+        if (-not $state.LastApply -or -not $state.Result) { return }
+        Add-Log ('Retry the failed items{0}' -f $(if ($Close.Count) { ', closing ' + (@($Close | ForEach-Object { '{0} ({1})' -f $_.Name, $_.Id }) -join ', ') + $(if ($Force) { ' (end if needed)' } else { '' }) } else { '' }))
+        Start-Work 'retry' @{ Plan = $state.LastApply.Plan; ReportFolder = $state.Result.ReportFolder; Close = @($Close); Force = [bool]$Force } $(if ($Close.Count) { T 'work.closing' } else { T 'work.renaming' })
+    }
+    function Confirm-ForceClose($Open) {
+        $state.FailOpen = @($Open)
+        $lines = @(T 'force.body')
+        foreach ($l in $state.FailOpen) { $lines += @{ Text = (Get-LockLabel $l); Mono = $true; Color = $text2 } }
+        $lines += @{ Text = (T 'force.lost'); Color = $badBrush }
+        Show-Dialog -Title (T 'force.title') -Lines $lines -Yes (T 'force.yes') -No (T 'dlg.cancel') -OnYes { Start-Retry -Close $state.FailOpen -Force }
+    }
+    function Restart-Elevated {
+        $a = @{ Language = $lang }
+        if ($ui.ModePro.IsChecked) { $a.Pro = $true }
+        if ($state.Library) { $a.Path = $state.Library.Path } elseif ($Path) { $a.Path = $Path }
+        if ($state.Manual) { foreach ($k in 'Root', 'Upn', 'Prefix') { if ($state.Manual.ContainsKey($k) -and $state.Manual[$k]) { $a[$k] = $state.Manual[$k] } } }
+        try { Start-PathShrinkElevated $a }
+        catch { Show-Error (T 'err.admin') $_; return $false }
+        Add-Log 'Opened again as administrator'
+        $state.Relaunch = $null
+        $win.Close()
+    }
+    function Show-LocationPicker([object[]]$Choices) {
+        # More than one OneDrive account or synced library: the user picks which one.
+        $panel = New-Object Windows.Controls.StackPanel
+        $state.PickerChoices = @()
+        $first = $true
+        foreach ($c in $Choices) {
+            $rb = New-Object Windows.Controls.RadioButton
+            $rb.GroupName = 'PathShrinkLocation'; $rb.Margin = '0,0,0,10'; $rb.Foreground = $textBrush; $rb.IsChecked = $first; $first = $false
+            $sp = New-Object Windows.Controls.StackPanel
+            [void]$sp.Children.Add((New-Text $c.Label 14 $textBrush 'Segoe UI Semibold'))
+            [void]$sp.Children.Add((New-Text $c.Path 13 $text2 'Consolas'))
+            $rb.Content = $sp
+            [void]$panel.Children.Add($rb)
+            $state.PickerChoices += @{ Button = $rb; Path = $c.Path }
+        }
+        Show-Dialog -Title (T 'pick.title') -Lines @((T 'pick.body'), $panel) -Yes (T 'pick.yes') -No (T 'dlg.cancel') -OnYes {
+            foreach ($c in $state.PickerChoices) { if ($c.Button.IsChecked) { [void](Select-Library $c.Path) } }
+        }
     }
 
     # ---------------------------------------------------------------- history and revert
@@ -1424,6 +1566,7 @@ function Show-PathShrinkWindow {
     $ui.BtnScan.Add_Click({ Start-Scan })
     $ui.BtnRescan.Add_Click({ Start-Scan })
     $ui.BtnAgain.Add_Click({ if ($state.Library) { [void](Select-Library $state.Library.Path); Start-Scan } })
+    $ui.BtnFixFailed.Add_Click({ Show-FailHelp $state.Result })
     $ui.BtnDemo.Add_Click({ Show-Demo })
     $ui.BtnCancel.Add_Click({
         if ($state.Job) { $state.Job.Cancelled = $true; $ui.WorkDetail.Text = T 'work.stopping'; [void]$state.Job.PS.BeginStop($null, $null); Add-Log 'Scan cancelled' }
@@ -1538,6 +1681,15 @@ function Show-PathShrinkWindow {
     if ($startPro) { $ui.ModePro.IsChecked = $true }
     Add-Log ('PathShrink {0} on PowerShell {1}, language {2}' -f (Get-PathShrinkVersion), $PSVersionTable.PSVersion, $lang)
     [void](Select-Library $Path)
+    if (-not $Path -and -not $Root -and -not $Screenshot) {
+        # Several OneDrive accounts or synced libraries: ask which one instead of taking the first.
+        $choices = @(try { Get-PathShrinkLocation } catch { Add-Log ('Locations not read: {0}' -f $_.Exception.Message) })
+        if ($choices.Count -gt 1) {
+            Add-Log ('{0} OneDrive locations found, asking which one' -f $choices.Count)
+            $state.PickerStart = $choices
+            $win.Add_ContentRendered({ if ($state.PickerStart) { $c = $state.PickerStart; $state.PickerStart = $null; Show-LocationPicker $c } })
+        }
+    }
     Update-RulesState
     $state.Loading = $false
 
