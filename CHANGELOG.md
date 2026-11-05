@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-11-05
+
+### Added
+- **Copies brought back** in Changes applied: after renaming, OneDrive can ask "Do you want to delete
+  these items?" and, with Keep, download the cloud copies again at the old names. PathShrink finds
+  them, compares each one with the file at the new place (SHA-256, or size and date for files that
+  are only in the cloud, so nothing is downloaded) and takes out only the identical ones: moved out
+  of OneDrive to `%LOCALAPPDATA%\PathShrink\Duplicates`, or deleted to the OneDrive recycle bin when
+  only in the cloud. Copies that differ or have no file at the new place are kept. A revert still
+  works afterwards. New `Find-PathShrinkDuplicate` and `Move-PathShrinkDuplicate`.
+- The confirmation, the result screen and the command line say what to answer to that OneDrive prompt.
+
+### Fixed
+- Cancel or Close in any dialog closed the whole window (`IsCancel` on a window shown modally).
+- The Pro log no longer fills with "importing function" lines on every task.
+
 ## [1.1.1] - 2026-11-05
 
 ### Fixed

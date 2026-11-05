@@ -1077,6 +1077,139 @@ function Undo-PathShrink {
     New-Object psobject -Property @{ Restored = $ok; Failed = $failed; Skipped = $skipped; AlreadyRestored = $already; Results = $results }
 }
 
+# --------------------------------------------------------------------------------------
+# Copies OneDrive brings back to the old names ("Do you want to delete these items?" > Keep)
+# --------------------------------------------------------------------------------------
+function Test-CloudOnly($Item) {
+    # Files On-Demand placeholder: reading it would download it.
+    [bool](([int]$Item.Attributes) -band (0x1000 -bor 0x40000 -bor 0x400000))
+}
+
+function Get-FileSha256([string]$Path) {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    $fs = [IO.File]::OpenRead((ConvertTo-LongPath $Path))
+    try { -join ($sha.ComputeHash($fs) | ForEach-Object { $_.ToString('X2') }) } finally { $fs.Dispose(); $sha.Dispose() }
+}
+
+function Find-PathShrinkDuplicate {
+    <#
+    .SYNOPSIS
+        Finds the copies OneDrive brought back to the old names after a run, without changing anything.
+    .DESCRIPTION
+        After folders are renamed, OneDrive can ask "Do you want to delete these items?". With
+        Keep, it downloads the cloud copies again at their old paths, so the same files are in
+        the old and in the new place. For every renamed item whose old name exists again, each
+        file under the old place is compared with the same file under the new name:
+          Same       same content (SHA-256), or same size and date when one of them is only in the cloud
+          Different  the two differ: both are kept
+          OnlyOld    nothing at the new place (maybe new work saved there since): kept
+        Method says how Same was decided: Hash or SizeDate.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$UndoFile,
+        [scriptblock]$OnProgress
+    )
+    $rows = @(Import-Csv -LiteralPath $UndoFile | Where-Object { $_.Result -eq 'OK' } | Sort-Object { [int]$_.Depth }, OriginalPath)
+    $now = @{}
+    foreach ($r in $rows) { $now[$r.OriginalPath] = Join-Path (Resolve-UndoPath $now (Split-Path $r.OriginalPath -Parent)) $r.NewName }
+    $roots = New-Object System.Collections.Generic.List[string]
+    $n = 0
+    foreach ($r in $rows) {
+        $old = $r.OriginalPath
+        $inside = $false
+        foreach ($d in $roots) { if ($old.StartsWith($d + '\', [StringComparison]::OrdinalIgnoreCase)) { $inside = $true; break } }
+        if ($inside) { continue }
+        $lo = ConvertTo-LongPath $old
+        if (-not (Test-Path -LiteralPath $lo) -or -not (Test-Path -LiteralPath (ConvertTo-LongPath $now[$old]))) { continue }
+        $roots.Add($old)
+        $files = $(if (Test-Path -LiteralPath $lo -PathType Leaf) { @(Get-Item -LiteralPath $lo -Force) } else { @(Get-ChildItem -LiteralPath $lo -Recurse -File -Force -ErrorAction SilentlyContinue) })
+        foreach ($f in $files) {
+            $n++
+            if ($OnProgress) { & $OnProgress $n }
+            $op = ConvertFrom-LongPath $f.FullName
+            $np = Resolve-UndoPath $now $op
+            $nl = ConvertTo-LongPath $np
+            $status = 'OnlyOld'; $method = ''
+            if (Test-Path -LiteralPath $nl -PathType Leaf) {
+                $nf = Get-Item -LiteralPath $nl -Force
+                $status = 'Different'
+                if ($nf.Length -eq $f.Length) {
+                    if ((Test-CloudOnly $f) -or (Test-CloudOnly $nf)) {
+                        $method = 'SizeDate'
+                        if ([Math]::Abs(($nf.LastWriteTimeUtc - $f.LastWriteTimeUtc).TotalSeconds) -lt 2) { $status = 'Same' }
+                    } else {
+                        $method = 'Hash'
+                        if ((Get-FileSha256 $f.FullName) -eq (Get-FileSha256 $nl)) { $status = 'Same' }
+                    }
+                }
+            }
+            [pscustomobject]@{ OldPath = $op; NewPath = $np; Status = $status; Method = $method; Size = [long]$f.Length; CloudOnly = (Test-CloudOnly $f); Root = $old }
+        }
+    }
+}
+
+function Move-PathShrinkDuplicate {
+    <#
+    .SYNOPSIS
+        Takes the copies found by Find-PathShrinkDuplicate (Status Same only) out of the old places.
+    .DESCRIPTION
+        A copy that is on this PC is moved, not deleted, to -Destination (default
+        %LOCALAPPDATA%\PathShrink\Duplicates\<time>), keeping its full path. A copy that is only in
+        the cloud is deleted: moving it would download it first, and OneDrive keeps it in its
+        recycle bin. Before each one the file at the new place is checked again. Old folders left
+        empty are removed. OneDrive may then ask again whether to delete these items: this time
+        Delete is right, they are copies. Copies that differ or have no file at the new place are
+        never touched. The outcome is written to duplicates.csv in -Destination.
+    #>
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
+    param(
+        [Parameter(Mandatory)][AllowEmptyCollection()][psobject[]]$Duplicate,
+        [string]$Destination
+    )
+    $same = @($Duplicate | Where-Object { $_.Status -eq 'Same' })
+    if (-not $same.Count) { Write-Verbose 'No identical copies.'; return }
+    if (-not $PSCmdlet.ShouldProcess(('{0} copies' -f $same.Count), 'Take out of the old folders')) { return }
+    if (-not $Destination) { $Destination = Join-Path $env:LOCALAPPDATA ('PathShrink\Duplicates\' + (Get-Date -Format 'yyyyMMdd-HHmmss')) }
+    [void][IO.Directory]::CreateDirectory((ConvertTo-LongPath $Destination))
+    $moved = 0; $deleted = 0; $failed = 0
+    $results = foreach ($d in $same) {
+        $res = ''
+        try {
+            if (-not (Test-Path -LiteralPath (ConvertTo-LongPath $d.NewPath) -PathType Leaf)) { throw 'The file at the new place is not there any more' }
+            $src = ConvertTo-LongPath $d.OldPath
+            $item = Get-Item -LiteralPath $src -Force
+            if (Test-CloudOnly $item) {
+                [IO.File]::Delete($src)
+                $res = 'Deleted (OneDrive recycle bin)'; $deleted++
+            } else {
+                $rel = $d.OldPath -replace '^([A-Za-z]):', '$1' -replace '^\\\\', 'UNC\'
+                $dst = ConvertTo-LongPath (Join-Path $Destination $rel)
+                [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($dst))
+                [IO.File]::Move($src, $dst)
+                $res = 'Moved'; $moved++
+            }
+        } catch { $res = 'ERROR: ' + $_.Exception.Message; $failed++ }
+        Write-Verbose ('{0}: {1}' -f $res, $d.OldPath)
+        [pscustomobject]@{ Time = (Get-Date).ToString('s'); OldPath = $d.OldPath; NewPath = $d.NewPath; Size = $d.Size; Result = $res }
+    }
+    $results = @($results)
+    # Old folders that are now empty go too, deepest first; a folder with anything left stays.
+    $removed = 0
+    foreach ($root in @($same | ForEach-Object { $_.Root } | Sort-Object -Unique)) {
+        $lr = ConvertTo-LongPath $root
+        if (-not (Test-Path -LiteralPath $lr -PathType Container)) { continue }
+        $dirs = @(Get-ChildItem -LiteralPath $lr -Recurse -Directory -Force -ErrorAction SilentlyContinue | Sort-Object { $_.FullName.Length } -Descending) + @(Get-Item -LiteralPath $lr -Force)
+        foreach ($dir in $dirs) {
+            if (@(Get-ChildItem -LiteralPath $dir.FullName -Force -ErrorAction SilentlyContinue).Count) { continue }
+            try { [IO.Directory]::Delete($dir.FullName, $false); $removed++ } catch { Write-Verbose ('Folder kept: {0}' -f $dir.FullName) }
+        }
+    }
+    try { $results | Export-Csv -LiteralPath (Join-Path $Destination 'duplicates.csv') -NoTypeInformation -Encoding UTF8 -WhatIf:$false }
+    catch { Write-Verbose ('duplicates.csv not written: {0}' -f $_.Exception.Message) }
+    New-Object psobject -Property @{ Moved = $moved; Deleted = $deleted; Failed = $failed; FoldersRemoved = $removed; Destination = $Destination; Results = $results }
+}
+
 function Get-PathShrinkHistory {
     <#
     .SYNOPSIS
@@ -1294,6 +1427,10 @@ function Invoke-PathShrink {
         Write-Host ''
         Write-Host ('Renamed {0}, failed {1}. Verified on disk: {2} of {3} fixed paths. Still above {4}: {5}.' -f $res.Renamed, $res.Failed, $res.VerifiedFixed, $res.ExpectedFixed, $plan.Target, $res.StillLong.Count) -ForegroundColor $(if ($res.Failed -or $res.StillOverLimit) { 'Yellow' } else { 'Green' })
         if ($res.UndoFile) { Write-Host ('Undo: Undo-PathShrink -UndoFile "{0}"' -f $res.UndoFile) }
+        if ($res.Renamed) {
+            Write-Host 'If OneDrive asks "Do you want to delete these items?", choose Keep: nothing is lost.' -ForegroundColor Yellow
+            Write-Host ('Once it has synced, find and take out the copies it brings back: Find-PathShrinkDuplicate -UndoFile "{0}" | Move-PathShrinkDuplicate' -f $res.UndoFile)
+        }
         if ($res.InUse) {
             Write-Host ('{0} items are open in another program:' -f $res.InUse) -ForegroundColor Yellow
             foreach ($l in $res.Locks) { Write-Host ('  {0} ({1}, process {2}){3}' -f $(if ($l.Title) { $l.Title } else { $l.Name }), $l.Name, $l.Id, $(if (-not $l.CanClose) { ', not closed by PathShrink' } else { '' })) }
@@ -1334,4 +1471,4 @@ function Start-PathShrink {
 
 Export-ModuleMember -Function Get-PathShrinkLibrary, Get-PathShrinkAccount, Get-PathShrinkSyncMount, Get-PathShrinkInventory,
     New-PathShrinkPlan, Update-PathShrinkPlan, Test-PathShrinkRename, Set-PathShrinkRename, Get-PathShrinkSummary, Invoke-PathShrinkPlan, Undo-PathShrink, Test-PathShrinkUndo, Get-PathShrinkHistory,
-    Find-PathShrinkSyncIssue, Export-PathShrinkReport, Get-PathShrinkEnvironment, Get-PathShrinkLock, Stop-PathShrinkLock, Invoke-PathShrink, Start-PathShrink
+    Find-PathShrinkSyncIssue, Export-PathShrinkReport, Get-PathShrinkEnvironment, Get-PathShrinkLock, Stop-PathShrinkLock, Find-PathShrinkDuplicate, Move-PathShrinkDuplicate, Invoke-PathShrink, Start-PathShrink

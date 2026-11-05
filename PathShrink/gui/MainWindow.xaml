@@ -984,6 +984,7 @@
                       <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
                         <Button x:Name="BtnHistRevert" Style="{StaticResource PrimaryButton}" Content="" MinWidth="200" Margin="0,0,12,0"/>
                         <Button x:Name="BtnHistCheck" Style="{StaticResource CutButton}" Content="{{hist.recheck}}" Margin="0,0,12,0"/>
+                        <Button x:Name="BtnHistDupes" Style="{StaticResource CutButton}" Content="{{hist.dupes}}" ToolTip="{{hist.dupes.tip}}" Margin="0,0,12,0"/>
                         <Button x:Name="BtnHistReport" Style="{StaticResource LinkButton}" Content="{{hist.openReport}}"/>
                       </StackPanel>
                     </StackPanel>
@@ -1181,7 +1182,7 @@
           <TextBlock x:Name="DlgTitle" Style="{StaticResource H1}" FontSize="24"/>
           <StackPanel x:Name="DlgBody" Margin="0,16,0,0"/>
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
-            <Button x:Name="DlgNo" Style="{StaticResource CutButton}" Content="{{dlg.cancel}}" Margin="0,0,12,0" IsCancel="True"/>
+            <Button x:Name="DlgNo" Style="{StaticResource CutButton}" Content="{{dlg.cancel}}" Margin="0,0,12,0"/>
             <Button x:Name="DlgYes" Style="{StaticResource PrimaryButton}" Content="{{dlg.ok}}"/>
           </StackPanel>
         </StackPanel>

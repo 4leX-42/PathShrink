@@ -30,7 +30,8 @@ function Find([string]$Name, [int]$Timeout = 15, $Root = $script:win) {
     $cond = New-Object Windows.Automation.PropertyCondition($AE::NameProperty, $Name)
     $t = [DateTime]::Now
     while (([DateTime]::Now - $t).TotalSeconds -lt $Timeout) {
-        foreach ($e in $Root.FindAll([Windows.Automation.TreeScope]::Descendants, $cond)) { if (-not $e.Current.IsOffscreen) { return $e } }
+        # The tree can change while it is read (E_UNEXPECTED): just read it again.
+        try { foreach ($e in $Root.FindAll([Windows.Automation.TreeScope]::Descendants, $cond)) { if (-not $e.Current.IsOffscreen) { return $e } } } catch [Runtime.InteropServices.COMException] { Write-Verbose 'Tree changed while reading' }
         Start-Sleep -Milliseconds 150
     }
     $null
@@ -38,9 +39,11 @@ function Find([string]$Name, [int]$Timeout = 15, $Root = $script:win) {
 function FindLike([string]$Pattern, [int]$Timeout = 15, [switch]$Enabled) {
     $t = [DateTime]::Now
     while (([DateTime]::Now - $t).TotalSeconds -lt $Timeout) {
-        foreach ($e in $script:win.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition)) {
-            if ($e.Current.Name -like $Pattern -and -not $e.Current.IsOffscreen -and (-not $Enabled -or $e.Current.IsEnabled)) { return $e }
-        }
+        try {
+            foreach ($e in $script:win.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition)) {
+                if ($e.Current.Name -like $Pattern -and -not $e.Current.IsOffscreen -and (-not $Enabled -or $e.Current.IsEnabled)) { return $e }
+            }
+        } catch [Runtime.InteropServices.COMException] { Write-Verbose 'Tree changed while reading' }
         Start-Sleep -Milliseconds 200
     }
     $null
@@ -198,6 +201,53 @@ try {
     Click (FindLike 'Restore * names' 10)
     Check ([bool](Find 'Revert finished' 60)) 'one revert undoes the first try and the retry'
     Check (((Get-Tree) -join '|') -eq ($original -join '|')) 'folder is back to its original state after the retry'
+    Press 'OK' 5
+
+    # OneDrive "Keep": copies come back at the old names; the history finds and takes them out.
+    Press 'Back'
+    Press 'Scan for long paths' 10
+    Click (FindLike 'Apply * changes' 60)
+    Check ([bool](FindLike '*choose Keep*' 10)) 'confirmation says what to answer to the OneDrive delete prompt'
+    # Cancel closes the dialog only, never the window.
+    Click ($script:win.FindFirst('Descendants', (New-Object Windows.Automation.PropertyCondition($AE::AutomationIdProperty, 'DlgNo'))))
+    Start-Sleep -Milliseconds 800
+    Check (-not $proc.HasExited -and [bool](FindLike 'Apply * changes' 5)) 'Cancel in a dialog keeps PathShrink open'
+    Click (FindLike 'Apply * changes' 10)
+    Click (FindLike 'Rename * items' 10)
+    $revert = Find 'Revert changes' 60
+    Check ([bool]$revert) 'second apply finishes'
+    Import-Module (Join-Path $repo 'PathShrink\PathShrink.psd1') -Force
+    $undo = @(Get-ChildItem -LiteralPath $reports -Recurse -Filter undo.csv | Sort-Object LastWriteTime -Descending)[0].FullName
+    $now = @{}
+    foreach ($r in @(Import-Csv $undo | Sort-Object { [int]$_.Depth })) { $now[$r.OriginalPath] = Join-Path (& (Get-Module PathShrink) { param($n, $p) Resolve-UndoPath $n $p } $now (Split-Path $r.OriginalPath -Parent)) $r.NewName }
+    $copies = @()
+    foreach ($c in @($original | Sort-Object Length -Descending)) {
+        if ($copies.Count -ge 2) { break }
+        $old = $c.Substring(4)
+        $new = & (Get-Module PathShrink) { param($n, $p) Resolve-UndoPath $n $p } $now $old
+        if ($new -eq $old -or -not [IO.File]::Exists('\\?\' + $new)) { continue }
+        [void][IO.Directory]::CreateDirectory('\\?\' + (Split-Path $old -Parent))
+        [IO.File]::Copy('\\?\' + $new, $c)
+        $copies += $c
+    }
+    $withCopies = Get-Tree
+    Click $revert
+    Press 'Copies brought back' 30
+    Check ([bool](FindLike '2 are the same as at the new place*' 30)) 'the history finds the identical copies at the old names'
+    Press 'Take out 2 copies'
+    Check ([bool](Find 'Copies taken out' 30)) 'copies are taken out'
+    Check (-not [IO.File]::Exists($copies[0]) -and -not [IO.File]::Exists($copies[1])) 'the old places no longer have the copies'
+    Check (@(Get-Tree).Count -lt $withCopies.Count) 'old folders left empty are removed'
+    # "Close" is also the caption button: press the dialog's own one.
+    Click ($script:win.FindFirst('Descendants', (New-Object Windows.Automation.PropertyCondition($AE::AutomationIdProperty, 'DlgNo'))))
+    Click (FindLike 'Revert * changes*' 30 -Enabled)
+    Click (FindLike 'Restore * names' 10)
+    Check ([bool](Find 'Revert finished' 60)) 'revert still works after taking the copies out'
+    Check (((Get-Tree) -join '|') -eq ($original -join '|')) 'folder is back to its original state after the copies'
+    $dupDir = Join-Path $env:LOCALAPPDATA 'PathShrink\Duplicates'
+    foreach ($x in @(Get-ChildItem -LiteralPath $dupDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt $t0 })) {
+        if (@(Get-ChildItem -LiteralPath $x.FullName -Recurse -File | Where-Object { $_.FullName -like '*PathShrinkTest-gui*' -or $_.Name -eq 'duplicates.csv' }).Count -eq @(Get-ChildItem -LiteralPath $x.FullName -Recurse -File).Count) { [IO.Directory]::Delete('\\?\' + $x.FullName, $true) }
+    }
 } finally {
     if ($holder -and -not $holder.HasExited) { $holder.Kill() }
     if ($ready -and (Test-Path -LiteralPath $ready)) { Remove-Item -LiteralPath $ready -Force }

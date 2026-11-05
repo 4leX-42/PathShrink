@@ -1,6 +1,6 @@
 ﻿@{
     RootModule           = 'PathShrink.psm1'
-    ModuleVersion        = '1.1.1'
+    ModuleVersion        = '1.2.0'
     GUID                 = 'c4344eca-54bf-4248-9977-c8ad06c8ff01'
     Author               = '4leX-42'
     CompanyName          = 'Community'
@@ -12,7 +12,7 @@
         'Start-PathShrink', 'Invoke-PathShrink',
         'Get-PathShrinkLibrary', 'Get-PathShrinkAccount', 'Get-PathShrinkSyncMount', 'Get-PathShrinkInventory',
         'New-PathShrinkPlan', 'Update-PathShrinkPlan', 'Test-PathShrinkRename', 'Set-PathShrinkRename', 'Get-PathShrinkSummary', 'Invoke-PathShrinkPlan', 'Undo-PathShrink', 'Test-PathShrinkUndo', 'Get-PathShrinkHistory',
-        'Find-PathShrinkSyncIssue', 'Export-PathShrinkReport', 'Get-PathShrinkEnvironment', 'Get-PathShrinkLock', 'Stop-PathShrinkLock'
+        'Find-PathShrinkSyncIssue', 'Export-PathShrinkReport', 'Get-PathShrinkEnvironment', 'Get-PathShrinkLock', 'Stop-PathShrinkLock', 'Find-PathShrinkDuplicate', 'Move-PathShrinkDuplicate'
     )
     CmdletsToExport      = @()
     VariablesToExport    = @()
