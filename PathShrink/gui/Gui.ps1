@@ -232,7 +232,7 @@ function Show-PathShrinkWindow {
             'PlanList', 'PlanEmpty', 'BtnPlanSummary', 'BtnPlanApply',
             'PanelDone', 'DoneIcon', 'DoneTitle', 'DoneText', 'DoneRenamed', 'DoneVerified', 'DoneStill', 'DoneFailed', 'RevertCard', 'RevertText', 'BtnUndo', 'BtnFixFailed', 'BtnReports', 'BtnAgain',
             'PanelHistory', 'BtnHistBack', 'HistList', 'HistEmpty', 'HistDetail', 'HistPick', 'HistWhen', 'HistFolder', 'HistMeta', 'HistCheckText', 'HistCounts',
-            'HistReady', 'HistAlready', 'HistBlocked', 'HistBlockedList', 'BtnHistRevert', 'BtnHistCheck', 'BtnHistReport', 'BtnUndoFile', 'BtnOpenReports',
+            'HistReady', 'HistAlready', 'HistBlocked', 'HistBlockedList', 'BtnHistRevert', 'BtnHistCheck', 'BtnHistDupes', 'BtnHistReport', 'BtnUndoFile', 'BtnOpenReports',
             'PanelDemo', 'BtnDemoBack', 'DemoEx1', 'DemoEx2', 'DemoEx3', 'DemoS0', 'DemoS1', 'DemoS2', 'DemoS3', 'DemoStepInfo', 'BtnDemoPlay', 'DemoLen', 'DemoRuler', 'DemoBar',
             'DemoTargetLine', 'DemoLimitLine', 'DemoTargetLabel', 'DemoLimitLabel', 'DemoTree', 'DemoExplain',
             'RulesChip', 'RulesState', 'OptLimit', 'OptMargin', 'OptTrim', 'MinNameRow', 'OptMinName', 'OptExclude', 'OptProtect', 'OptPrefix', 'RulesDirty', 'BtnReplan', 'BtnEnv', 'BtnCopyCli',
@@ -247,7 +247,7 @@ function Show-PathShrinkWindow {
         View = 'PanelStart'; Back = $null; Page = 0; CompareItems = @(); RenameMap = @{}; PlanItems = @()
         History = @(); HistRun = $null; Check = $null; PickAfterHistory = $null; HelpEntries = @{}; HelpKey = $null; HelpFocus = $null
         Demo = $null; Editor = $null; PlayStep = 0; SettingPath = $false; Sorted = @(); SortedFor = $null; RenameMapFor = $null; PlanItemsFor = $null
-        LastApply = $null; FailLocks = @(); FailOpen = @(); PickerChoices = @(); PickerStart = $null
+        LastApply = $null; FailLocks = @(); FailOpen = @(); PickerChoices = @(); PickerStart = $null; Dupes = @(); DupesFolder = $null
     }
     $brush = { param($hex) $c = New-Object Windows.Media.BrushConverter; $b = $c.ConvertFromString($hex); $b.Freeze(); $b }
     $gold = & $brush '#C9A96E'; $goldHi = & $brush '#E2C48A'; $text2 = & $brush '#B4B4BA'; $text3 = & $brush '#8C8C94'; $lineBrush = & $brush '#303036'
@@ -442,7 +442,7 @@ function Show-PathShrinkWindow {
     }
     function Set-Busy([bool]$Busy) {
         $state.Busy = $Busy
-        foreach ($b in 'BtnFolder', 'BtnFolderGo', 'FolderPath', 'BtnReplan', 'BtnScan', 'BtnHistory', 'BtnHistRevert', 'BtnHistCheck', 'BtnUndoFile', 'LangEN', 'LangES', 'LangPT') { $ui[$b].IsEnabled = -not $Busy }
+        foreach ($b in 'BtnFolder', 'BtnFolderGo', 'FolderPath', 'BtnReplan', 'BtnScan', 'BtnHistory', 'BtnHistRevert', 'BtnHistCheck', 'BtnHistDupes', 'BtnUndoFile', 'LangEN', 'LangES', 'LangPT') { $ui[$b].IsEnabled = -not $Busy }
     }
 
     # ---------------------------------------------------------------- folder
@@ -502,7 +502,7 @@ function Show-PathShrinkWindow {
         $ErrorActionPreference = 'Stop'
         $VerbosePreference = 'Continue'
         try {
-            Import-Module $ModulePath -Force
+            Import-Module $ModulePath -Force -Verbose:$false
             switch ($Kind) {
                 'scan' {
                     $la = $A.LibraryArgs; $lib = Get-PathShrinkLibrary @la
@@ -536,6 +536,8 @@ function Show-PathShrinkWindow {
                     $Sync.Result = Invoke-PathShrinkPlan -Plan $A.Plan -ReportFolder $A.ReportFolder -Retry -Confirm:$false -OnProgress { param($i, $t) $Sync.Count = $i; $Sync.Total = $t }
                 }
                 'check' { $Sync.Result = Test-PathShrinkUndo -UndoFile $A.UndoFile }
+                'dupes' { $Sync.Result = @(Find-PathShrinkDuplicate -UndoFile $A.UndoFile -OnProgress { param($n) $Sync.Count = $n }) }
+                'dupesMove' { $Sync.Result = Move-PathShrinkDuplicate -Duplicate $A.Duplicates -Confirm:$false }
                 'undo' { $Sync.Result = Undo-PathShrink -UndoFile $A.UndoFile -Confirm:$false }
             }
         } catch { $Sync.Error = $_.Exception.Message } finally { $Sync.Done = $true }
@@ -552,7 +554,7 @@ function Show-PathShrinkWindow {
         if (-not $Quiet) {
             $ui.WorkTitle.Text = $Title
             $ui.WorkDetail.Text = ''
-            $ui.WorkNote.Text = $(switch ($Kind) { 'apply' { T 'work.note.apply' } 'retry' { T 'work.note.apply' } 'undo' { T 'work.note.undo' } default { T 'work.note.read' } })
+            $ui.WorkNote.Text = $(switch ($Kind) { 'apply' { T 'work.note.apply' } 'retry' { T 'work.note.apply' } 'dupes' { T 'work.note.read' } 'dupesMove' { T 'work.note.apply' } 'undo' { T 'work.note.undo' } default { T 'work.note.read' } })
             $ui.WorkBar.IsIndeterminate = $true
             $ui.BtnCancel.Visibility = $(if ($Kind -eq 'scan' -or $Kind -eq 'plan') { 'Visible' } else { 'Collapsed' })
             Show-View 'PanelWork'
@@ -575,6 +577,7 @@ function Show-PathShrinkWindow {
                 else { $ui.WorkDetail.Text = T 'work.read' $s.Count }
             }
             { $_ -eq 'retry' -and $s.Phase -eq 'close' } { $ui.WorkDetail.Text = T 'work.closing' }
+            'dupes' { $ui.WorkDetail.Text = T 'work.dupesRead' $s.Count }
             { $_ -eq 'apply' -or ($_ -eq 'retry' -and $s.Phase -eq 'apply') } {
                 if ($s.Total) { $ui.WorkBar.IsIndeterminate = $false; $ui.WorkBar.Maximum = $s.Total; $ui.WorkBar.Value = $s.Count }
                 $ui.WorkDetail.Text = $(if ($s.Count -ge $s.Total -and $s.Total) { T 'work.checking' } else { T 'work.renamed' $s.Count $s.Total })
@@ -589,8 +592,8 @@ function Show-PathShrinkWindow {
         Set-Busy $false
         if ($j.Cancelled) { Show-View 'PanelStart'; Set-Step 2; Set-Status (T 'status.cancelled') ''; return }
         if ($s.Error) {
-            if (-not $j.Quiet) { Show-View $(if ($j.Kind -eq 'undo') { 'PanelHistory' } elseif ($j.Kind -eq 'retry') { 'PanelDone' } elseif ($state.Plan -and $j.Kind -ne 'scan') { 'PanelResults' } else { 'PanelStart' }) }
-            Show-Error $(switch ($j.Kind) { 'scan' { T 'err.scan' } 'plan' { T 'err.plan' } 'apply' { T 'err.apply' } 'retry' { T 'err.apply' } 'check' { T 'err.check' } default { T 'err.undo' } }) $s.Error
+            if (-not $j.Quiet) { Show-View $(if ($j.Kind -eq 'undo') { 'PanelHistory' } elseif ($j.Kind -eq 'retry') { 'PanelDone' } elseif ($j.Kind -like 'dupes*') { 'PanelHistory' } elseif ($state.Plan -and $j.Kind -ne 'scan') { 'PanelResults' } else { 'PanelStart' }) }
+            Show-Error $(switch ($j.Kind) { 'scan' { T 'err.scan' } 'plan' { T 'err.plan' } 'apply' { T 'err.apply' } 'retry' { T 'err.apply' } 'dupes' { T 'err.dupes' } 'dupesMove' { T 'err.dupes' } 'check' { T 'err.check' } default { T 'err.undo' } }) $s.Error
             Set-Status (T 'status.error') ''
             return
         }
@@ -604,6 +607,8 @@ function Show-PathShrinkWindow {
                 else { Show-View 'PanelDone' }
             }
             'check' { Complete-Check $s.Result }
+            'dupes' { Show-View 'PanelHistory'; Complete-Dupes $s.Result }
+            'dupesMove' { Show-View 'PanelHistory'; Complete-DupesMove $s.Result }
             'undo' { Complete-Undo $s.Result }
         }
     })
@@ -1090,6 +1095,7 @@ function Show-PathShrinkWindow {
         $lines += T 'confirm.content'
         $lines += T 'confirm.undo'
         $lines += @{ Text = (T 'confirm.links'); Color = $text2 }
+        $lines += @{ Text = (T 'confirm.prompt'); Color = $warnBrush }
         Set-Step 4
         Show-Dialog -Title (T 'confirm.title' $sel.Count) -Lines $lines -Yes (T 'confirm.yes' $sel.Count) -No (T 'dlg.cancel') -OnYes {
             Add-Log ('Apply: {0} renames' -f @($state.Plan.Renames | Where-Object { $_.Selected }).Count)
@@ -1111,6 +1117,7 @@ function Show-PathShrinkWindow {
         if ($R.StillLong.Count) { $t += T 'done.still' $R.StillLong.Count $plan.Target $R.StillOverLimit $plan.Limit }
         $ui.BtnFixFailed.Visibility = $(if ($R.Failed) { 'Visible' } else { 'Collapsed' })
         $t += T 'done.sync'
+        if ($R.Renamed) { $t += T 'done.prompt' }
         $ui.DoneText.Text = $t -join "`n"
         $ui.DoneRenamed.Text = '{0:N0}' -f $R.Renamed
         $ui.DoneVerified.Text = T 'done.ofTotal' $R.VerifiedFixed $R.ExpectedFixed
@@ -1297,6 +1304,57 @@ function Show-PathShrinkWindow {
         if ($R.Failed) { $lines += @{ Text = (T 'undo.failed' $R.Failed); Color = $badBrush } }
         $lines += T 'undo.rescan'
         Show-Dialog -Title (T 'undo.doneTitle') -Lines $lines
+    }
+
+    # ---------------------------------------------------------------- copies OneDrive brought back
+    function Start-Dupes {
+        if (-not $state.HistRun) { return }
+        Add-Log ('Look for copies at the old names: {0}' -f $state.HistRun.UndoFile)
+        Start-Work 'dupes' @{ UndoFile = $state.HistRun.UndoFile } (T 'work.dupes')
+    }
+    function Get-SizeText([long]$Bytes) { if ($Bytes -ge 1GB) { '{0:N1} GB' -f ($Bytes / 1GB) } elseif ($Bytes -ge 1MB) { '{0:N1} MB' -f ($Bytes / 1MB) } else { '{0:N0} KB' -f [Math]::Ceiling($Bytes / 1KB) } }
+    function Complete-Dupes($D) {
+        $D = @($D)
+        $same = @($D | Where-Object { $_.Status -eq 'Same' })
+        $diff = @($D | Where-Object { $_.Status -eq 'Different' }).Count
+        $only = @($D | Where-Object { $_.Status -eq 'OnlyOld' }).Count
+        Add-Log ('Copies at the old names: {0} same, {1} different, {2} only there' -f $same.Count, $diff, $only)
+        foreach ($x in ($D | Select-Object -First 200)) { Add-Log ('  {0} {1}' -f $x.Status, $x.OldPath) }
+        if (-not $D.Count) { Show-Dialog -Title (T 'dupes.none.title') -Lines @(T 'dupes.none'); return }
+        $state.Dupes = $D
+        $size = 0L; foreach ($x in $same) { $size += $x.Size }
+        $cloud = @($same | Where-Object { $_.CloudOnly }).Count
+        $lines = @()
+        if ($same.Count) { $lines += @{ Text = (T 'dupes.same' $same.Count (Get-SizeText $size)); Bold = $true } }
+        if ($diff) { $lines += @{ Text = (T 'dupes.diff' $diff); Color = $warnBrush } }
+        if ($only) { $lines += @{ Text = (T 'dupes.only' $only); Color = $warnBrush } }
+        $roots = @($D | ForEach-Object { $_.Root } | Sort-Object -Unique)
+        foreach ($r in ($roots | Select-Object -First 6)) { $lines += @{ Text = $r; Mono = $true; Color = $text2 } }
+        if ($roots.Count -gt 6) { $lines += @{ Text = (T 'hist.blockedMore' ($roots.Count - 6)); Color = $text2 } }
+        if (-not $same.Count) { $lines += T 'dupes.keepAll'; Show-Dialog -Title (T 'dupes.title' $D.Count) -Lines $lines; return }
+        $lines += T 'dupes.how'
+        if ($cloud) { $lines += @{ Text = (T 'dupes.cloud' $cloud); Color = $text2 } }
+        $lines += @{ Text = (T 'dupes.prompt'); Color = $warnBrush }
+        Show-Dialog -Title (T 'dupes.title' $D.Count) -Lines $lines -Yes (T 'dupes.yes' $same.Count) -No (T 'dlg.cancel') -OnYes {
+            Add-Log 'Take out the identical copies'
+            Start-Work 'dupesMove' @{ Duplicates = $state.Dupes } (T 'work.dupesMove')
+        }
+    }
+    function Complete-DupesMove($M) {
+        if (-not $M) { return }
+        Add-Log ('Copies taken out: moved {0}, deleted {1}, failed {2}, empty folders removed {3}. {4}' -f $M.Moved, $M.Deleted, $M.Failed, $M.FoldersRemoved, $M.Destination)
+        foreach ($x in $M.Results) { if ($x.Result -like 'ERROR*') { Add-Log ('  {0}: {1}' -f $x.OldPath, $x.Result) } }
+        $state.DupesFolder = $M.Destination
+        $lines = @()
+        if ($M.Moved) { $lines += T 'dupes.moved' $M.Moved }
+        if ($M.Deleted) { $lines += T 'dupes.deleted' $M.Deleted }
+        if ($M.Failed) { $lines += @{ Text = (T 'dupes.failed' $M.Failed); Color = $badBrush } }
+        $lines += @{ Text = (T 'dupes.after'); Color = $warnBrush }
+        if ($M.Moved) {
+            $lines += @{ Text = $M.Destination; Mono = $true; Color = $text2 }
+            Show-Dialog -Title (T 'dupes.doneTitle') -Lines $lines -Yes (T 'dupes.open') -No (T 'dlg.close') -OnYes { Start-Process explorer.exe -ArgumentList ('"{0}"' -f $state.DupesFolder) }
+        } else { Show-Dialog -Title (T 'dupes.doneTitle') -Lines $lines }
+        if ($state.HistRun) { Select-HistoryRun $state.HistRun }
     }
 
     # ---------------------------------------------------------------- demo
@@ -1629,6 +1687,7 @@ function Show-PathShrinkWindow {
     $ui.HistList.Add_SelectionChanged({ if ($ui.HistList.SelectedItem -ne $state.HistRun) { Select-HistoryRun $ui.HistList.SelectedItem } })
     $ui.BtnHistCheck.Add_Click({ if ($state.HistRun) { Select-HistoryRun $state.HistRun } })
     $ui.BtnHistRevert.Add_Click({ Confirm-Revert })
+    $ui.BtnHistDupes.Add_Click({ Start-Dupes })
     $ui.BtnHistReport.Add_Click({ if ($state.HistRun) { Start-Process explorer.exe -ArgumentList ('"{0}"' -f $state.HistRun.ReportFolder) } })
     $ui.BtnOpenReports.Add_Click({
         if (-not (Test-Path -LiteralPath $ReportRoot)) { New-Item -ItemType Directory -Path $ReportRoot -Force | Out-Null }

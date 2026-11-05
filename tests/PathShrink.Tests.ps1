@@ -354,6 +354,38 @@ Describe 'Apply, verify and undo' {
             Get-TestRels $root | Should -Be $original
         } finally { if (-not $p.HasExited) { $p.Kill() } }
     }
+    It 'finds the copies OneDrive brings back to the old names and takes out only the identical ones' {
+        $lib = Get-PathShrinkLibrary -Root $root -Upn $TestUpn
+        $plan = New-PathShrinkPlan -Inventory (Get-PathShrinkInventory -Library $lib) -Limit 260 -Margin 0
+        $res = Invoke-PathShrinkPlan -Plan $plan -ReportFolder "$root-reports\run" -Confirm:$false
+        $renamedTree = Get-TestRels $root
+        # OneDrive "Keep": the old folders come back with copies of the files.
+        $files = @((Get-DeepFiles)[0], (Get-DeepFiles)[1], (Get-DeepFiles)[2])
+        $now = @{}; foreach ($r in @(Import-Csv $res.UndoFile | Sort-Object { [int]$_.Depth })) { $now[$r.OriginalPath] = Join-Path ((& (Get-Module PathShrink) { param($n, $p) Resolve-UndoPath $n $p } $now (Split-Path $r.OriginalPath -Parent))) $r.NewName }
+        foreach ($f in $files) {
+            $old = Join-Path $root $f
+            $new = & (Get-Module PathShrink) { param($n, $p) Resolve-UndoPath $n $p } $now $old
+            [void][IO.Directory]::CreateDirectory('\\?\' + (Split-Path $old -Parent))
+            [IO.File]::Copy('\\?\' + $new, '\\?\' + $old)
+        }
+        [IO.File]::WriteAllText('\\?\' + (Join-Path $root $files[1]), 'changed')          # differs from the new place
+        $extra = Join-Path (Split-Path (Join-Path $root $files[0]) -Parent) 'saved later.txt'
+        [IO.File]::WriteAllText('\\?\' + $extra, 'new work')                             # only at the old place
+        $d = @(Find-PathShrinkDuplicate -UndoFile $res.UndoFile)
+        @($d | Where-Object Status -eq 'Same').Count | Should -Be 2
+        @($d | Where-Object Status -eq 'Different').Count | Should -Be 1
+        @($d | Where-Object Status -eq 'OnlyOld').OldPath | Should -Be $extra
+        @($d | Where-Object Status -eq 'Same')[0].Method | Should -Be 'Hash'
+        $m = Move-PathShrinkDuplicate -Duplicate $d -Destination "$root-reports\dupes" -Confirm:$false
+        $m.Moved | Should -Be 2
+        $m.Failed | Should -Be 0
+        [IO.File]::Exists('\\?\' + (Join-Path $root $files[0])) | Should -BeFalse
+        [IO.File]::Exists('\\?\' + (Join-Path $root $files[1])) | Should -BeTrue
+        [IO.File]::Exists('\\?\' + $extra) | Should -BeTrue
+        @(Get-ChildItem -LiteralPath "$root-reports\dupes" -Recurse -File | Where-Object Name -ne 'duplicates.csv').Count | Should -Be 2
+        # The renamed files themselves are untouched.
+        foreach ($rel in $renamedTree) { [IO.File]::Exists('\\?\' + (Join-Path $root $rel)) -or [IO.Directory]::Exists('\\?\' + (Join-Path $root $rel)) | Should -BeTrue }
+    }
     It 'tells a permission problem apart from a file in use' {
         $e = New-Object Management.Automation.ErrorRecord ((New-Object UnauthorizedAccessException 'Access to the path is denied.')), 'x', 'PermissionDenied', $null
         & (Get-Module PathShrink) { param($x) Get-RenameFailReason $x } $e | Should -Be 'Denied'

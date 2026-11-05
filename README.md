@@ -74,6 +74,12 @@ which program holds it open and offers to close that program and retry only the 
 the program to close first, so it can offer to save). If permission is missing, it offers to open
 again as administrator on the same folder.
 
+**OneDrive asks "Do you want to delete these items?"** after the renames: choose **Keep**, nothing is
+lost. OneDrive may then download the cloud copies again at the old names. Once it has synced, open
+*Changes applied*, pick the run and use **Copies brought back**: PathShrink compares each copy with the
+file at the new place and takes out only the identical ones (moved out of OneDrive, never deleted
+from this PC). If OneDrive then asks again, *Delete* is right that time: they are copies.
+
 **Option 3: PowerShell Gallery** *(planned)*:
 
 ```powershell
