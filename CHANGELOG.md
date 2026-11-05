@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-11-05
+
+### Fixed
+- `install.ps1` failed with "Get-FileHash is not recognized" when Windows PowerShell was started
+  from PowerShell 7 (Windows Terminal default): it now hashes and unpacks with .NET.
+- `PathShrink.exe` starts Windows PowerShell without the inherited PowerShell 7 module path.
+
 ## [1.1.0] - 2026-11-05
 
 ### Added

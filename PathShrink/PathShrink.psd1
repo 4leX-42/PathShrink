@@ -1,6 +1,6 @@
 ﻿@{
     RootModule           = 'PathShrink.psm1'
-    ModuleVersion        = '1.1.0'
+    ModuleVersion        = '1.1.1'
     GUID                 = 'c4344eca-54bf-4248-9977-c8ad06c8ff01'
     Author               = '4leX-42'
     CompanyName          = 'Community'
