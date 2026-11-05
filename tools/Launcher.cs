@@ -31,6 +31,9 @@ static class Program
         psi.UseShellExecute = false;
         psi.CreateNoWindow = true;
         psi.WorkingDirectory = dir;
+        // Started from PowerShell 7, the inherited PSModulePath points Windows PowerShell at
+        // modules it cannot load; without it, powershell.exe builds its own default.
+        psi.EnvironmentVariables.Remove("PSModulePath");
         try { Process.Start(psi); }
         catch (Exception e)
         {

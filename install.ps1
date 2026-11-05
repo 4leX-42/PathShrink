@@ -60,12 +60,17 @@ try {
     Invoke-WebRequest -Uri "$base/PathShrink.zip" -OutFile $zip -UseBasicParsing
     Invoke-WebRequest -Uri "$base/PathShrink.zip.sha256" -OutFile "$zip.sha256" -UseBasicParsing
     $expected = ((Get-Content -LiteralPath "$zip.sha256" -Raw).Trim() -split '\s+')[0]
-    $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
+    # .NET instead of Get-FileHash and Expand-Archive: started from PowerShell 7, Windows PowerShell
+    # inherits its PSModulePath and those two cmdlets are not found.
+    $sha = [Security.Cryptography.SHA256]::Create()
+    $fs = [IO.File]::OpenRead($zip)
+    try { $actual = -join ($sha.ComputeHash($fs) | ForEach-Object { $_.ToString('X2') }) } finally { $fs.Dispose(); $sha.Dispose() }
     if ($actual -ne $expected) { throw "SHA-256 mismatch. Expected $expected, got $actual. Nothing was installed." }
     if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
     New-Item -ItemType Directory -Path $dest -Force | Out-Null
-    Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force
-    Get-ChildItem -LiteralPath $dest -Recurse -File | Unblock-File
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::ExtractToDirectory($zip, $dest)
+    foreach ($x in Get-ChildItem -LiteralPath $dest -Recurse -File) { Remove-Item -LiteralPath $x.FullName -Stream Zone.Identifier -ErrorAction SilentlyContinue }
     $exe = Join-Path $dest 'PathShrink.exe'
     if (-not $NoShortcut) {
         $sh = New-Object -ComObject WScript.Shell
