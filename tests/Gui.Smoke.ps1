@@ -174,7 +174,33 @@ try {
     Choose (FindLike '3 ? Shorten names' 5)
     Check ([bool](FindLike '*fits with margin' 5)) 'demo shows the result of shortening names'
     Check (((Get-Tree) -join '|') -eq ($original -join '|')) 'demo did not touch the disk'
+
+    # A file held open by another process: the window names it, closes it and retries.
+    $deep = @($original | Where-Object { [IO.File]::Exists($_) } | Sort-Object Length -Descending)[0]
+    $ready = Join-Path ([IO.Path]::GetTempPath()) ('PathShrinkTest-ready' + [guid]::NewGuid().ToString('N').Substring(0, 6))
+    $hold = "`$h = [IO.File]::Open('$deep', 'Open', 'Read', 'Read'); Set-Content -LiteralPath '$ready' -Value ok; Start-Sleep -Seconds 300"
+    $holder = Start-Process powershell -ArgumentList '-NoProfile', '-Command', $hold -WindowStyle Hidden -PassThru
+    $t = [DateTime]::Now; while (-not (Test-Path -LiteralPath $ready) -and ([DateTime]::Now - $t).TotalSeconds -lt 20) { Start-Sleep -Milliseconds 200 }
+    Press 'Back'
+    Press 'Scan for long paths' 10
+    Click (FindLike 'Apply * changes' 60)
+    Click (FindLike 'Rename * items' 10)
+    Check ([bool](FindLike '* items were not renamed' 60)) 'apply reports the items it could not rename'
+    Check ([bool](FindLike "*, $($holder.Id))" 3)) 'the dialog names the program holding them'
+    Press 'Close programs and retry'
+    Check ([bool](Find 'Some programs are still open' 30)) 'a program without a window is not ended without asking'
+    Press 'End and retry'
+    $revert = Find 'Revert changes' 60
+    Check ($holder.WaitForExit(10000)) 'the program is ended after the second choice'
+    Check ([bool]$revert -and -not (Find 'Fix the failed ones' 2)) 'retry renames the rest, nothing left failed'
+    Click $revert
+    Click (FindLike 'Revert * changes*' 30 -Enabled)
+    Click (FindLike 'Restore * names' 10)
+    Check ([bool](Find 'Revert finished' 60)) 'one revert undoes the first try and the retry'
+    Check (((Get-Tree) -join '|') -eq ($original -join '|')) 'folder is back to its original state after the retry'
 } finally {
+    if ($holder -and -not $holder.HasExited) { $holder.Kill() }
+    if ($ready -and (Test-Path -LiteralPath $ready)) { Remove-Item -LiteralPath $ready -Force }
     if (-not $proc.HasExited) { $proc.CloseMainWindow() | Out-Null; if (-not $proc.WaitForExit(5000)) { $proc.Kill() } }
     foreach ($d in $base, ('\\?\' + $reports)) { if ([IO.Directory]::Exists($d)) { [IO.Directory]::Delete($d, $true) } }
 }

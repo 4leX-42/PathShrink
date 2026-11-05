@@ -5,7 +5,9 @@
     Installs PathShrink for the current user (no admin), or removes it.
 .DESCRIPTION
     Downloads the release zip from GitHub, checks its SHA-256 against the published hash,
-    unpacks it to %LOCALAPPDATA%\Programs\PathShrink and adds a Start menu shortcut.
+    unpacks it to %LOCALAPPDATA%\Programs\PathShrink, adds a Start menu shortcut to
+    PathShrink.exe and opens it. Run it from a normal PowerShell, not as administrator:
+    PathShrink works on the OneDrive of the user who runs it.
     -Uninstall removes the program and the shortcut. Reports and undo files in
     %LOCALAPPDATA%\PathShrink are kept unless -RemoveData is given, because an undo file
     may still be needed.
@@ -17,13 +19,15 @@
     Release tag to install, for example v1.0.0. Default: the latest release.
 .PARAMETER NoShortcut
     Do not create the Start menu shortcut.
+.PARAMETER NoStart
+    Do not open PathShrink when the install ends.
 .EXAMPLE
     .\install.ps1
 .EXAMPLE
     .\install.ps1 -Uninstall
 #>
 [CmdletBinding()]
-param([switch]$Uninstall, [switch]$RemoveData, [string]$Version = 'latest', [switch]$NoShortcut)
+param([switch]$Uninstall, [switch]$RemoveData, [string]$Version = 'latest', [switch]$NoShortcut, [switch]$NoStart)
 
 $ErrorActionPreference = 'Stop'
 $repo = 'https://github.com/4leX-42/PathShrink'
@@ -38,6 +42,12 @@ if ($Uninstall) {
     Write-Host 'PathShrink removed.' -ForegroundColor Green
     if (-not $RemoveData -and (Test-Path -LiteralPath $data)) { Write-Host "Reports and undo files kept in $data" }
     return
+}
+
+$elevated = $false
+try { $elevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) } catch { $elevated = $false }
+if ($elevated) {
+    Write-Warning ('Running as administrator: PathShrink is installed for {0} and works on that user''s OneDrive. If that is not your account, close this window and run the command in a normal PowerShell' -f $env:USERNAME)
 }
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072
@@ -56,11 +66,16 @@ try {
     New-Item -ItemType Directory -Path $dest -Force | Out-Null
     Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force
     Get-ChildItem -LiteralPath $dest -Recurse -File | Unblock-File
+    $exe = Join-Path $dest 'PathShrink.exe'
     if (-not $NoShortcut) {
         $sh = New-Object -ComObject WScript.Shell
         $s = $sh.CreateShortcut($lnk)
-        $s.TargetPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-        $s.Arguments = '-NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f (Join-Path $dest 'PathShrink.ps1')
+        if (Test-Path -LiteralPath $exe) { $s.TargetPath = $exe }
+        else {
+            # Releases before 1.1.0 have no exe.
+            $s.TargetPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+            $s.Arguments = '-NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f (Join-Path $dest 'PathShrink.ps1')
+        }
         $s.WorkingDirectory = $dest
         $s.IconLocation = (Join-Path $dest 'PathShrink\gui\PathShrink.ico') + ',0'
         $s.Description = 'Fix OneDrive and SharePoint paths over the 400-character limit'
@@ -69,6 +84,14 @@ try {
     Write-Host "PathShrink installed in $dest" -ForegroundColor Green
     if (-not $NoShortcut) { Write-Host 'Open it from the Start menu: PathShrink' }
     Write-Host "Command line: Import-Module '$dest\PathShrink\PathShrink.psd1'; Invoke-PathShrink -WhatIf"
+    if (-not $NoStart) {
+        Write-Host 'Opening PathShrink'
+        # From an elevated install, File Explorer opens it as the signed-in user, not as administrator.
+        if (Test-Path -LiteralPath $exe) {
+            if ($elevated) { Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe') -ArgumentList ('"{0}"' -f $exe) }
+            else { Start-Process -FilePath $exe -WorkingDirectory $dest }
+        } else { Start-Process -FilePath (Join-Path $dest 'PathShrink.cmd') -WorkingDirectory $dest -WindowStyle Hidden }
+    }
 } finally {
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }

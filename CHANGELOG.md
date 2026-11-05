@@ -2,7 +2,22 @@
 
 All notable changes to this project are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.0] - 2026-11-05
+
+### Added
+- `PathShrink.exe` in the release zip: double-click to open the window, no console. A small
+  launcher built from `tools/Launcher.cs` with the .NET Framework 4 compiler, so it runs on
+  Windows 10 and 11 as they come.
+- Items that could not be renamed now say why: open in another program (and which one, through
+  the Windows Restart Manager) or no permission.
+- The window offers to close those programs and retry only the failed items. Each program is
+  asked to close first, so it can still offer to save; ending it is a second, explicit choice.
+  Services, Windows processes and File Explorer are never closed.
+- When permission is missing, the window offers to open again as administrator on the same folder.
+- `Invoke-PathShrinkPlan -Retry` tries the failed items of a run again into the same report folder,
+  so one revert still undoes the whole run. New `Get-PathShrinkLock` and `Stop-PathShrinkLock`.
+- With more than one OneDrive account or synced library, the window asks which one to check.
+- `install.ps1` opens PathShrink when it finishes (`-NoStart` to skip), and its shortcut points to the exe.
 
 ### Changed
 - New logo: the Windows logo (a Microsoft trademark) is replaced by a folder with two inward chevrons.

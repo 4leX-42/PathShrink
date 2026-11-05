@@ -52,7 +52,8 @@ checks the result on disk and keeps an undo file.
 
 ## Quick start
 
-**Option 1: install for the current user** (Start menu shortcut, no admin):
+**Option 1: install for the current user** (Start menu shortcut, no admin). Run it in a normal
+Windows PowerShell, not as administrator: PathShrink works on the OneDrive of the user who runs it.
 
 ```powershell
 $f = "$env:TEMP\install-pathshrink.ps1"
@@ -61,11 +62,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $f
 ```
 
 The installer downloads the release zip, checks its SHA-256, unpacks it to
-`%LOCALAPPDATA%\Programs\PathShrink` and adds a Start menu shortcut. Read it before running it: it is
-short. Remove with `install.ps1 -Uninstall`.
+`%LOCALAPPDATA%\Programs\PathShrink`, adds a Start menu shortcut to `PathShrink.exe` and opens it.
+Read it before running it: it is short. Remove with `install.ps1 -Uninstall`.
 
 **Option 2: portable.** Download `PathShrink.zip` from
-[Releases](https://github.com/4leX-42/PathShrink/releases/latest), unzip, double-click `PathShrink.cmd`.
+[Releases](https://github.com/4leX-42/PathShrink/releases/latest), unzip, double-click `PathShrink.exe`.
+The exe is not signed: if SmartScreen stops it, choose *More info*, *Run anyway*.
+
+**Files open in another program or no permission.** When an item cannot be renamed, PathShrink says
+which program holds it open and offers to close that program and retry only the failed items (it asks
+the program to close first, so it can offer to save). If permission is missing, it offers to open
+again as administrator on the same folder.
 
 **Option 3: PowerShell Gallery** *(planned)*:
 

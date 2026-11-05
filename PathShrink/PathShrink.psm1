@@ -620,6 +620,207 @@ function Get-PathShrinkSummary {
 }
 
 # --------------------------------------------------------------------------------------
+# Items that cannot be renamed: which program holds them open, and closing it
+# --------------------------------------------------------------------------------------
+# Restart Manager (rstrtmgr.dll, Windows Vista and later) is the API installers use to
+# find which processes have a file open. C# 5 so the compiler of .NET Framework 4 builds it.
+$script:RmSource = @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+namespace PathShrinkNative {
+    public class Locker {
+        public int Id; public string Title; public string Service; public int AppType; public bool Restartable;
+    }
+    public static class RestartManager {
+        [StructLayout(LayoutKind.Sequential)]
+        struct RM_UNIQUE_PROCESS { public int dwProcessId; public System.Runtime.InteropServices.ComTypes.FILETIME ProcessStartTime; }
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct RM_PROCESS_INFO {
+            public RM_UNIQUE_PROCESS Process;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)] public string strAppName;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string strServiceShortName;
+            public int ApplicationType; public uint AppStatus; public uint TSSessionId;
+            [MarshalAs(UnmanagedType.Bool)] public bool bRestartable;
+        }
+        [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)] static extern int RmStartSession(out uint handle, int flags, StringBuilder key);
+        [DllImport("rstrtmgr.dll")] static extern int RmEndSession(uint handle);
+        [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)] static extern int RmRegisterResources(uint handle, uint nFiles, string[] files, uint nApps, IntPtr apps, uint nServices, string[] services);
+        [DllImport("rstrtmgr.dll")] static extern int RmGetList(uint handle, out uint needed, ref uint count, [In, Out] RM_PROCESS_INFO[] info, ref uint reasons);
+        public static List<Locker> Find(string[] files) {
+            List<Locker> list = new List<Locker>();
+            if (files == null || files.Length == 0) { return list; }
+            uint h; StringBuilder key = new StringBuilder(64);
+            if (RmStartSession(out h, 0, key) != 0) { return list; }
+            try {
+                if (RmRegisterResources(h, (uint)files.Length, files, 0, IntPtr.Zero, 0, null) != 0) { return list; }
+                uint needed = 0, count = 0, reasons = 0;
+                int r = RmGetList(h, out needed, ref count, null, ref reasons);
+                if (r == 234 && needed > 0) {
+                    RM_PROCESS_INFO[] info = new RM_PROCESS_INFO[needed + 8];
+                    count = (uint)info.Length;
+                    r = RmGetList(h, out needed, ref count, info, ref reasons);
+                    if (r == 0) {
+                        for (int i = 0; i < count; i++) {
+                            Locker l = new Locker();
+                            l.Id = info[i].Process.dwProcessId; l.Title = info[i].strAppName; l.Service = info[i].strServiceShortName;
+                            l.AppType = info[i].ApplicationType; l.Restartable = info[i].bRestartable;
+                            list.Add(l);
+                        }
+                    }
+                }
+            } finally { RmEndSession(h); }
+            return list;
+        }
+    }
+}
+'@
+
+function Get-PathShrinkLock {
+    <#
+    .SYNOPSIS
+        Lists the programs that have a file open in the given files or folders (Restart Manager).
+    .DESCRIPTION
+        A folder cannot be renamed while a program has a file inside it open, so for a folder
+        the files under it are checked (up to -MaxFiles). Each program is returned once with
+        Kind: App (has a window, can be asked to close), Background, Service, Explorer or
+        System. CanClose is true only for App and Background: PathShrink never stops a
+        service, Windows itself or File Explorer.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string[]]$Path,
+        [int]$MaxFiles = 2000
+    )
+    if (-not ('PathShrinkNative.RestartManager' -as [type])) { Add-Type -TypeDefinition $script:RmSource -Language CSharp }
+    $files = New-Object System.Collections.Generic.List[string]
+    foreach ($p in $Path) {
+        $lp = ConvertTo-LongPath $p
+        if (Test-Path -LiteralPath $lp -PathType Leaf) { $files.Add((ConvertFrom-LongPath $p)); continue }
+        if (-not (Test-Path -LiteralPath $lp -PathType Container)) { continue }
+        foreach ($f in (Get-ChildItem -LiteralPath $lp -Recurse -File -Force -ErrorAction SilentlyContinue)) {
+            if ($files.Count -ge $MaxFiles) { break }
+            $files.Add((ConvertFrom-LongPath $f.FullName))
+        }
+    }
+    if (-not $files.Count) { return }
+    # Restart Manager finds nothing for a path of 260 characters or more, which is every path
+    # this tool is about. Those files are looked up through a chain of short junctions in TEMP
+    # that point at their folder (each junction target stays short), removed right after.
+    $junctions = New-Object System.Collections.Generic.List[string]
+    $alias = @{}
+    $jroot = Join-Path ([IO.Path]::GetTempPath()) ('psrm' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    $names = New-Object System.Collections.Generic.List[string]
+    try {
+        foreach ($f in $files) {
+            if ($f.Length -lt 250) { $names.Add($f); continue }
+            $dir = Split-Path $f -Parent
+            if (-not $alias.ContainsKey($dir)) {
+                $segs = $dir.Split('\')
+                $cur = $segs[0]
+                for ($i = 1; $i -lt $segs.Length; $i++) {
+                    if (($cur.Length + 1 + $segs[$i].Length) -ge 200) {
+                        if (-not $junctions.Count) { [void][IO.Directory]::CreateDirectory($jroot) }
+                        $j = Join-Path $jroot ([string]$junctions.Count)
+                        New-Item -ItemType Junction -Path $j -Target $cur -ErrorAction Stop | Out-Null
+                        $junctions.Add($j); $cur = $j
+                    }
+                    $cur = $cur + '\' + $segs[$i]
+                }
+                # A last junction to the folder itself leaves room for the file name.
+                if (-not $junctions.Count) { [void][IO.Directory]::CreateDirectory($jroot) }
+                $j = Join-Path $jroot ([string]$junctions.Count)
+                New-Item -ItemType Junction -Path $j -Target $cur -ErrorAction Stop | Out-Null
+                $junctions.Add($j)
+                $alias[$dir] = $j
+            }
+            $names.Add((Join-Path $alias[$dir] (Split-Path $f -Leaf)))
+        }
+        $found = [PathShrinkNative.RestartManager]::Find($names.ToArray())
+    } catch {
+        Write-Verbose ('Lock check failed: {0}' -f $_.Exception.Message)
+        $found = @()
+    } finally {
+        # Deleting a junction (not recursive) removes only the link, never what it points at.
+        for ($i = $junctions.Count - 1; $i -ge 0; $i--) { try { [IO.Directory]::Delete($junctions[$i], $false) } catch { Write-Verbose ('Junction not removed: {0}' -f $junctions[$i]) } }
+        if ($junctions.Count) { try { [IO.Directory]::Delete($jroot, $false) } catch { Write-Verbose ('Folder not removed: {0}' -f $jroot) } }
+    }
+    $seen = @{}
+    foreach ($l in $found) {
+        if ($l.Id -eq $PID -or $seen.ContainsKey($l.Id)) { continue }
+        $seen[$l.Id] = $true
+        $proc = Get-Process -Id $l.Id -ErrorAction SilentlyContinue
+        $kind = switch ($l.AppType) { 1 { 'App' } 2 { 'App' } 3 { 'Service' } 4 { 'Explorer' } 1000 { 'System' } default { 'Background' } }
+        if ($kind -eq 'App' -and $proc -and $proc.MainWindowHandle -eq [IntPtr]::Zero) { $kind = 'Background' }
+        [pscustomobject]@{
+            Id = $l.Id; Name = $(if ($proc) { $proc.ProcessName } else { '' }); Title = $l.Title; Service = $l.Service
+            Kind = $kind; CanClose = [bool]($kind -in 'App', 'Background')
+        }
+    }
+}
+
+function Stop-PathShrinkLock {
+    <#
+    .SYNOPSIS
+        Closes the programs returned by Get-PathShrinkLock so the items they hold can be renamed.
+    .DESCRIPTION
+        Without -Force each program is asked to close as if the user closed its window, so it
+        can still offer to save changes, and PathShrink waits up to -TimeoutSeconds. With -Force
+        the programs that are still open after that are ended, and unsaved changes in them are
+        lost. Services, Windows processes and File Explorer are never closed.
+        Returns one line per program with Closed true or false.
+    #>
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
+    param(
+        [Parameter(Mandatory)][psobject[]]$Lock,
+        [switch]$Force,
+        [int]$TimeoutSeconds = 15
+    )
+    $todo = @($Lock | Where-Object { $_.CanClose -and $_.Id -ne $PID })
+    $procs = @()
+    foreach ($l in $todo) {
+        $p = Get-Process -Id $l.Id -ErrorAction SilentlyContinue
+        if (-not $p) { continue }
+        if (-not $PSCmdlet.ShouldProcess(('{0} ({1})' -f $p.ProcessName, $p.Id), $(if ($Force) { 'Close, end if it does not close' } else { 'Close' }))) { continue }
+        try { if (-not $p.CloseMainWindow() -and $Force) { $p.Kill() } } catch { Write-Verbose ('Close {0}: {1}' -f $p.Id, $_.Exception.Message) }
+        $procs += $p
+    }
+    $until = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $until -and @($procs | Where-Object { -not $_.HasExited }).Count) { Start-Sleep -Milliseconds 250 }
+    if ($Force) {
+        foreach ($p in $procs) { if (-not $p.HasExited) { try { $p.Kill(); [void]$p.WaitForExit(5000) } catch { Write-Verbose ('End {0}: {1}' -f $p.Id, $_.Exception.Message) } } }
+    }
+    foreach ($l in $Lock) {
+        $p = $null; foreach ($x in $procs) { if ($x.Id -eq $l.Id) { $p = $x } }
+        $closed = $(if ($p) { [bool]$p.HasExited } else { -not (Get-Process -Id $l.Id -ErrorAction SilentlyContinue) })
+        Write-Verbose ('{0} {1} ({2})' -f $(if ($closed) { 'Closed' } else { 'Still open' }), $l.Name, $l.Id)
+        [pscustomobject]@{ Id = $l.Id; Name = $l.Name; Title = $l.Title; Kind = $l.Kind; CanClose = $l.CanClose; Closed = $closed }
+    }
+}
+
+function Test-PathShrinkElevated {
+    try { ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) }
+    catch { $false }
+}
+
+function Get-RenameFailReason($Err) {
+    # InUse: a sharing or lock violation; Denied: no permission (for a folder this is also what
+    # Windows says when a file inside it is open, so the caller checks for programs as well).
+    # Windows PowerShell 5.1 reports a folder that cannot be renamed as a plain IOException
+    # (COR_E_IO, 0x80131620) with the "access denied" text in the system language.
+    $e = $Err.Exception
+    $denied = $false; $inUse = $false
+    while ($e) {
+        $code = $e.HResult -band 0xFFFF
+        if ($e -is [UnauthorizedAccessException] -or $code -eq 5 -or $e.HResult -eq -2146232800) { $denied = $true }
+        if ($code -eq 32 -or $code -eq 33 -or $e.Message -match 'used by another process') { $inUse = $true }
+        $e = $e.InnerException
+    }
+    if ($inUse) { 'InUse' } elseif ($denied) { 'Denied' } else { 'Other' }
+}
+
+# --------------------------------------------------------------------------------------
 # Apply, verify, undo
 # --------------------------------------------------------------------------------------
 function Get-PathShrinkReportFolder {
@@ -639,48 +840,109 @@ function Invoke-PathShrinkPlan {
         run is interrupted, the file still lists what was changed.
     .PARAMETER ReportFolder
         Where undo.csv and the reports go. Default: %LOCALAPPDATA%\PathShrink\Reports\<timestamp>.
+    .PARAMETER Retry
+        Run again into the -ReportFolder of an earlier run of the same plan: renames already done
+        there are skipped, the ones that failed are tried again where their parent folders are now,
+        and undo.csv keeps growing, so one revert still undoes the whole run.
+    .OUTPUTS
+        Renamed and Failed count the whole run (all tries). Each failed row has Reason (InUse,
+        Denied or Other) and LockedBy; Locks lists the programs that hold failed items open.
     #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
     param(
         [Parameter(Mandatory)][psobject]$Plan,
         [string]$ReportFolder,
+        [switch]$Retry,
         [scriptblock]$OnProgress
     )
+    if ($Retry -and -not $ReportFolder) { throw '-Retry needs the -ReportFolder of the earlier run.' }
+    $base = $Plan.Library.Base
     $sel = @($Plan.Renames | Where-Object { $_.Selected } | Sort-Object Depth -Descending)
+    $earlier = @()
+    $now = @{}
+    if ($Retry) {
+        $rf = Join-Path $ReportFolder 'renames.csv'
+        if (Test-Path -LiteralPath $rf) { $earlier = @(Import-Csv -LiteralPath $rf) }
+        $done = @{}; foreach ($e in $earlier) { if ($e.Result -eq 'OK') { $done[$e.OriginalPath] = $true } }
+        $sel = @($sel | Where-Object { -not $done.ContainsKey((Join-Path $base $_.Rel)) })
+        # Where each renamed item is now, so a retried item is found under its renamed parents.
+        $uf = Join-Path $ReportFolder 'undo.csv'
+        if (Test-Path -LiteralPath $uf) {
+            foreach ($u in @(Import-Csv -LiteralPath $uf | Where-Object { $_.Result -eq 'OK' } | Sort-Object { [int]$_.Depth })) {
+                $now[$u.OriginalPath] = Join-Path (Resolve-UndoPath $now (Split-Path $u.OriginalPath -Parent)) $u.NewName
+            }
+        }
+    }
     if (-not $sel.Count) { Write-Verbose 'Nothing selected.'; return }
     if (-not $PSCmdlet.ShouldProcess(('{0} items in {1}' -f $sel.Count, $Plan.Library.Path), 'Rename')) { return }
     if (-not $ReportFolder) { $ReportFolder = Get-PathShrinkReportFolder }
     elseif (-not (Test-Path -LiteralPath $ReportFolder)) { New-Item -ItemType Directory -Path $ReportFolder -Force | Out-Null }
     $undo = Join-Path $ReportFolder 'undo.csv'
-    $base = $Plan.Library.Base
     # run.json says what this run was, so the history can list it later without the plan.
     $run = [ordered]@{
         tool = 'PathShrink'; version = (Get-PathShrinkVersion); started = (Get-Date).ToString('s'); finished = $null
         folder = $Plan.Library.Path; library = $Plan.Library.Base; prefixLength = $Plan.Library.Prefix.Length
-        limit = $Plan.Limit; target = $Plan.Target; allowTrim = $Plan.AllowTrim; selected = $sel.Count; renamed = 0; failed = 0
+        limit = $Plan.Limit; target = $Plan.Target; allowTrim = $Plan.AllowTrim; selected = $sel.Count; renamed = 0; failed = 0; retries = 0
     }
     $runFile = Join-Path $ReportFolder 'run.json'
+    if ($Retry -and (Test-Path -LiteralPath $runFile)) {
+        try {
+            $old = Get-Content -LiteralPath $runFile -Raw | ConvertFrom-Json
+            $run.started = $old.started; $run.selected = $old.selected
+            if ($old.PSObject.Properties.Name -contains 'retries') { $run.retries = [int]$old.retries }
+        } catch { Write-Verbose ('run.json not read: {0}' -f $_.Exception.Message) }
+        $run.retries++
+    }
     $run | ConvertTo-Json | Set-Content -LiteralPath $runFile -Encoding UTF8
     $results = New-Object System.Collections.Generic.List[object]
-    $ok = 0; $failed = 0; $n = 0
+    $locks = @{}; $lockChecks = 0
+    $n = 0
     foreach ($r in $sel) {
         $n++
         $path = Join-Path $base $r.Rel
+        $cur = Resolve-UndoPath $now $path
         $row = New-Object psobject -Property ([ordered]@{
-            Depth = $r.Depth; Type = $r.Type; OriginalPath = $path; OriginalName = $r.OriginalName; NewName = $r.NewName; Result = ''; Time = '' })
+            Depth = $r.Depth; Type = $r.Type; OriginalPath = $path; OriginalName = $r.OriginalName; NewName = $r.NewName; Result = ''; Time = ''; Reason = ''; LockedBy = '' })
         try {
-            Rename-Item -LiteralPath (ConvertTo-LongPath $path) -NewName $r.NewName -ErrorAction Stop
-            $row.Result = 'OK'; $row.Time = (Get-Date).ToString('s'); $ok++
+            Rename-Item -LiteralPath (ConvertTo-LongPath $cur) -NewName $r.NewName -ErrorAction Stop
+            $row.Result = 'OK'; $row.Time = (Get-Date).ToString('s')
+            $now[$path] = Join-Path (Split-Path $cur -Parent) $r.NewName
             $row | Select-Object Depth, Type, OriginalPath, OriginalName, NewName, Result, Time | Export-Csv -LiteralPath $undo -NoTypeInformation -Encoding UTF8 -Append
-            Write-Verbose ('Renamed: {0} -> {1}' -f $path, $r.NewName)
+            Write-Verbose ('Renamed: {0} -> {1}' -f $cur, $r.NewName)
         } catch {
-            $row.Result = 'ERROR: ' + $_.Exception.Message; $failed++
-            Write-Verbose ('Failed: {0}: {1}' -f $path, $_.Exception.Message)
+            $row.Result = 'ERROR: ' + $_.Exception.Message
+            $row.Reason = Get-RenameFailReason $_
+            # The new name already taken is not a permission problem.
+            if ($row.Reason -eq 'Denied' -and (Test-Path -LiteralPath (ConvertTo-LongPath (Join-Path (Split-Path $cur -Parent) $r.NewName)))) { $row.Reason = 'Other' }
+            # Look for the programs holding it (capped: a folder means reading the files under it).
+            if ($lockChecks -lt 50) {
+                $lockChecks++
+                $held = @(try { Get-PathShrinkLock -Path $cur } catch { Write-Verbose ('Lock check failed: {0}' -f $_.Exception.Message) })
+                if ($held.Count) {
+                    $row.Reason = 'InUse'
+                    $row.LockedBy = (@($held | ForEach-Object { '{0} ({1})' -f $(if ($_.Title) { $_.Title } else { $_.Name }), $_.Id }) -join '; ')
+                    foreach ($h in $held) { $locks[$h.Id] = $h }
+                }
+            }
+            Write-Verbose ('Failed ({0}): {1}: {2}{3}' -f $row.Reason, $cur, $_.Exception.Message, $(if ($row.LockedBy) { ' Open in: ' + $row.LockedBy } else { '' }))
         }
         $results.Add($row)
         if ($OnProgress) { & $OnProgress $n $sel.Count }
     }
-    $results | Export-Csv -LiteralPath (Join-Path $ReportFolder 'renames.csv') -NoTypeInformation -Encoding UTF8
+    # On a retry the rows of this try replace those of the earlier ones.
+    $mine = @{}; foreach ($x in $results) { $mine[$x.OriginalPath] = $true }
+    $all = New-Object System.Collections.Generic.List[object]
+    foreach ($e in $earlier) {
+        if ($mine.ContainsKey($e.OriginalPath)) { continue }
+        foreach ($c in 'Reason', 'LockedBy') { if ($e.PSObject.Properties.Name -notcontains $c) { $e | Add-Member -NotePropertyName $c -NotePropertyValue '' } }
+        $all.Add($e)
+    }
+    foreach ($x in $results) { $all.Add($x) }
+    $results = $all
+    $ok = @($results | Where-Object { $_.Result -eq 'OK' }).Count
+    $failed = $results.Count - $ok
+    $results | Select-Object Depth, Type, OriginalPath, OriginalName, NewName, Result, Time, Reason, LockedBy |
+        Export-Csv -LiteralPath (Join-Path $ReportFolder 'renames.csv') -NoTypeInformation -Encoding UTF8
     $run.finished = (Get-Date).ToString('s'); $run.renamed = $ok; $run.failed = $failed
     $run | ConvertTo-Json | Set-Content -LiteralPath $runFile -Encoding UTF8
 
@@ -693,6 +955,8 @@ function Invoke-PathShrinkPlan {
     $exist = @($fixed | Where-Object { Test-Path -LiteralPath (ConvertTo-LongPath (Join-Path $base $_.NewRel)) })
     New-Object psobject -Property @{
         Renamed = $ok; Failed = $failed; Results = $results
+        InUse = @($results | Where-Object { $_.Reason -eq 'InUse' }).Count; Denied = @($results | Where-Object { $_.Reason -eq 'Denied' }).Count
+        Locks = @($locks.Values); Elevated = (Test-PathShrinkElevated)
         UndoFile = $(if ($ok) { $undo } else { $null }); ReportFolder = $ReportFolder
         StillLong = $still; StillOverLimit = @($still | Where-Object { $_.Length -gt $Plan.Limit }).Count
         VerifiedFixed = $exist.Count; ExpectedFixed = $fixed.Count
@@ -946,8 +1210,7 @@ function Get-PathShrinkEnvironment {
     param()
     $lp = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -ErrorAction SilentlyContinue
     $lpOn = $false; if ($lp -and ($lp.PSObject.Properties.Name -contains 'LongPathsEnabled')) { $lpOn = $lp.LongPathsEnabled -eq 1 }
-    $admin = $false
-    try { $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) } catch { Write-Verbose 'Elevation check failed' }
+    $admin = Test-PathShrinkElevated
     New-Object psobject -Property ([ordered]@{
         PathShrink        = Get-PathShrinkVersion
         PowerShell        = $PSVersionTable.PSVersion.ToString()
@@ -1031,6 +1294,14 @@ function Invoke-PathShrink {
         Write-Host ''
         Write-Host ('Renamed {0}, failed {1}. Verified on disk: {2} of {3} fixed paths. Still above {4}: {5}.' -f $res.Renamed, $res.Failed, $res.VerifiedFixed, $res.ExpectedFixed, $plan.Target, $res.StillLong.Count) -ForegroundColor $(if ($res.Failed -or $res.StillOverLimit) { 'Yellow' } else { 'Green' })
         if ($res.UndoFile) { Write-Host ('Undo: Undo-PathShrink -UndoFile "{0}"' -f $res.UndoFile) }
+        if ($res.InUse) {
+            Write-Host ('{0} items are open in another program:' -f $res.InUse) -ForegroundColor Yellow
+            foreach ($l in $res.Locks) { Write-Host ('  {0} ({1}, process {2}){3}' -f $(if ($l.Title) { $l.Title } else { $l.Name }), $l.Name, $l.Id, $(if (-not $l.CanClose) { ', not closed by PathShrink' } else { '' })) }
+            Write-Host 'Close them and retry: Invoke-PathShrinkPlan -Plan <plan> -Retry -ReportFolder <folder>, or run the same command again'
+        }
+        if ($res.Denied) {
+            Write-Host ('{0} items: access denied.{1}' -f $res.Denied, $(if (-not $res.Elevated) { ' Run PowerShell as administrator and try again.' } else { ' Check the permissions or the owner of those items.' })) -ForegroundColor Yellow
+        }
         if ($PassThru) { return $res }
     } elseif ($PassThru) { return $plan }
 }
@@ -1063,4 +1334,4 @@ function Start-PathShrink {
 
 Export-ModuleMember -Function Get-PathShrinkLibrary, Get-PathShrinkAccount, Get-PathShrinkSyncMount, Get-PathShrinkInventory,
     New-PathShrinkPlan, Update-PathShrinkPlan, Test-PathShrinkRename, Set-PathShrinkRename, Get-PathShrinkSummary, Invoke-PathShrinkPlan, Undo-PathShrink, Test-PathShrinkUndo, Get-PathShrinkHistory,
-    Find-PathShrinkSyncIssue, Export-PathShrinkReport, Get-PathShrinkEnvironment, Invoke-PathShrink, Start-PathShrink
+    Find-PathShrinkSyncIssue, Export-PathShrinkReport, Get-PathShrinkEnvironment, Get-PathShrinkLock, Stop-PathShrinkLock, Invoke-PathShrink, Start-PathShrink
