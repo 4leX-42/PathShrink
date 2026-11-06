@@ -30,7 +30,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $notes = (Get-Content CHANGELOG.md -Raw) -split '(?m)^## ' | Where-Object { $_ -like "[$($env:GITHUB_REF_NAME.TrimStart('v'))]*" } | Select-Object -First 1
-          gh release create $env:GITHUB_REF_NAME out/PathShrink.zip out/PathShrink.zip.sha256 --title "PathShrink $env:GITHUB_REF_NAME" --notes "## $notes"
+          gh release create $env:GITHUB_REF_NAME out/PathShrink.zip out/PathShrink.zip.sha256 out/PathShrink-script.zip out/PathShrink-script.zip.sha256 --title "PathShrink $env:GITHUB_REF_NAME" --notes "## $notes"
       - name: Publish to PowerShell Gallery
         env:
           PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}

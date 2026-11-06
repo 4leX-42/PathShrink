@@ -8,9 +8,13 @@
     unpacks it to %LOCALAPPDATA%\Programs\PathShrink, adds a Start menu shortcut to
     PathShrink.exe and opens it. Run it from a normal PowerShell, not as administrator:
     PathShrink works on the OneDrive of the user who runs it.
+    -NoExe does the same without PathShrink.exe, which is never downloaded: the shortcut and the
+    start go straight to Windows PowerShell. For computers where an antivirus or EDR stops the exe.
     -Uninstall removes the program and the shortcut. Reports and undo files in
     %LOCALAPPDATA%\PathShrink are kept unless -RemoveData is given, because an undo file
     may still be needed.
+.PARAMETER NoExe
+    Install and open it without PathShrink.exe. Needs release 1.3.3 or later.
 .PARAMETER Uninstall
     Remove PathShrink.
 .PARAMETER RemoveData
@@ -24,10 +28,12 @@
 .EXAMPLE
     .\install.ps1
 .EXAMPLE
+    .\install.ps1 -NoExe
+.EXAMPLE
     .\install.ps1 -Uninstall
 #>
 [CmdletBinding()]
-param([switch]$Uninstall, [switch]$RemoveData, [string]$Version = 'latest', [switch]$NoShortcut, [switch]$NoStart)
+param([switch]$Uninstall, [switch]$RemoveData, [string]$Version = 'latest', [switch]$NoShortcut, [switch]$NoStart, [switch]$NoExe)
 
 $ErrorActionPreference = 'Stop'
 $repo = 'https://github.com/4leX-42/PathShrink'
@@ -55,10 +61,16 @@ $base = $(if ($Version -eq 'latest') { "$repo/releases/latest/download" } else {
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ('PathShrink-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
-    $zip = Join-Path $tmp 'PathShrink.zip'
-    Write-Host "Downloading $base/PathShrink.zip"
-    Invoke-WebRequest -Uri "$base/PathShrink.zip" -OutFile $zip -UseBasicParsing
-    Invoke-WebRequest -Uri "$base/PathShrink.zip.sha256" -OutFile "$zip.sha256" -UseBasicParsing
+    $name = $(if ($NoExe) { 'PathShrink-script.zip' } else { 'PathShrink.zip' })
+    $zip = Join-Path $tmp $name
+    Write-Host "Downloading $base/$name"
+    try {
+        Invoke-WebRequest -Uri "$base/$name" -OutFile $zip -UseBasicParsing
+        Invoke-WebRequest -Uri "$base/$name.sha256" -OutFile "$zip.sha256" -UseBasicParsing
+    } catch {
+        if ($NoExe -and $Version -ne 'latest') { throw "Release $Version has no $name (it needs 1.3.3 or later). Nothing was installed." }
+        throw
+    }
     $expected = ((Get-Content -LiteralPath "$zip.sha256" -Raw).Trim() -split '\s+')[0]
     # .NET instead of Get-FileHash and Expand-Archive: started from PowerShell 7, Windows PowerShell
     # inherits its PSModulePath and those two cmdlets are not found.
@@ -77,7 +89,7 @@ try {
         $s = $sh.CreateShortcut($lnk)
         if (Test-Path -LiteralPath $exe) { $s.TargetPath = $exe }
         else {
-            # Releases before 1.1.0 have no exe.
+            # -NoExe, and releases before 1.1.0, which have no exe.
             $s.TargetPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
             $s.Arguments = '-NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f (Join-Path $dest 'PathShrink.ps1')
         }
@@ -95,7 +107,12 @@ try {
         if (Test-Path -LiteralPath $exe) {
             if ($elevated) { Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe') -ArgumentList ('"{0}"' -f $exe) }
             else { Start-Process -FilePath $exe -WorkingDirectory $dest }
-        } else { Start-Process -FilePath (Join-Path $dest 'PathShrink.cmd') -WorkingDirectory $dest -WindowStyle Hidden }
+        } else {
+            # Started from PowerShell 7, Windows PowerShell must not inherit its module path.
+            Remove-Item Env:PSModulePath -ErrorAction SilentlyContinue
+            $line = '-NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f (Join-Path $dest 'PathShrink.ps1')
+            Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -ArgumentList $line -WorkingDirectory $dest
+        }
     }
 } finally {
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue

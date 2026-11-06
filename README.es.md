@@ -43,9 +43,14 @@ guarda un fichero para deshacer.
 ## Empezar
 
 ```powershell
-$f = "$env:TEMP\install-pathshrink.ps1"
-irm https://raw.githubusercontent.com/4leX-42/PathShrink/main/install.ps1 -OutFile $f
-powershell -NoProfile -ExecutionPolicy Bypass -File $f
+Set-ExecutionPolicy -Scope Process Bypass -Force; [Net.ServicePointManager]::SecurityProtocol=3072; $f="$env:TEMP\install-pathshrink.ps1"; irm https://raw.githubusercontent.com/4leX-42/PathShrink/main/install.ps1 -OutFile $f; powershell -NoProfile -ExecutionPolicy Bypass -File $f
+```
+
+**Sin el `.exe`**, si un antivirus o EDR detiene `PathShrink.exe`. No llega a descargarse: la ventana se abre
+directamente con Windows PowerShell.
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force; [Net.ServicePointManager]::SecurityProtocol=3072; $f="$env:TEMP\install-pathshrink.ps1"; irm https://raw.githubusercontent.com/4leX-42/PathShrink/main/install.ps1 -OutFile $f; powershell -NoProfile -ExecutionPolicy Bypass -File $f -NoExe
 ```
 
 Instala para el usuario actual en `%LOCALAPPDATA%\Programs\PathShrink` con acceso en el menú Inicio,

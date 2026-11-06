@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.3] - 2026-11-06
+
+### Added
+- **Install and run without the exe.** `install.ps1 -NoExe` downloads the new `PathShrink-script.zip`,
+  which has no `PathShrink.exe`, and opens the window directly with Windows PowerShell. For computers
+  where an antivirus or EDR stops the exe. The README has a ready-to-paste command for each route.
+
+### Fixed
+- `PathShrink.cmd` no longer inherits the PowerShell 7 module path.
+
 ## [1.3.2] - 2026-11-06
 
 Tested with the real OneDrive client on a real shortcut.

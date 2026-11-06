@@ -55,22 +55,31 @@ checks the result on disk and keeps an undo file.
 
 ## Quick start
 
-**Option 1: install for the current user** (Start menu shortcut, no admin). Run it in a normal
-Windows PowerShell, not as administrator: PathShrink works on the OneDrive of the user who runs it.
+Paste one of these in a normal Windows PowerShell, not as administrator: PathShrink works on the
+OneDrive of the user who runs it. Both install for the current user (Start menu shortcut, no admin) and
+open the window.
+
+**Option 1: with `PathShrink.exe`.**
 
 ```powershell
-$f = "$env:TEMP\install-pathshrink.ps1"
-irm https://raw.githubusercontent.com/4leX-42/PathShrink/main/install.ps1 -OutFile $f
-powershell -NoProfile -ExecutionPolicy Bypass -File $f
+Set-ExecutionPolicy -Scope Process Bypass -Force; [Net.ServicePointManager]::SecurityProtocol=3072; $f="$env:TEMP\install-pathshrink.ps1"; irm https://raw.githubusercontent.com/4leX-42/PathShrink/main/install.ps1 -OutFile $f; powershell -NoProfile -ExecutionPolicy Bypass -File $f
+```
+
+**Option 2: without the exe.** If an antivirus or EDR stops `PathShrink.exe`. The exe is never
+downloaded: the window opens directly with Windows PowerShell.
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force; [Net.ServicePointManager]::SecurityProtocol=3072; $f="$env:TEMP\install-pathshrink.ps1"; irm https://raw.githubusercontent.com/4leX-42/PathShrink/main/install.ps1 -OutFile $f; powershell -NoProfile -ExecutionPolicy Bypass -File $f -NoExe
 ```
 
 The installer downloads the release zip, checks its SHA-256, unpacks it to
-`%LOCALAPPDATA%\Programs\PathShrink`, adds a Start menu shortcut to `PathShrink.exe` and opens it.
-Read it before running it: it is short. Remove with `install.ps1 -Uninstall`.
+`%LOCALAPPDATA%\Programs\PathShrink`, adds the Start menu shortcut and opens it. Read it before running
+it: it is short. Remove with `install.ps1 -Uninstall`.
 
-**Option 2: portable.** Download `PathShrink.zip` from
-[Releases](https://github.com/4leX-42/PathShrink/releases/latest), unzip, double-click `PathShrink.exe`.
-The exe is not signed: if SmartScreen stops it, choose *More info*, *Run anyway*.
+**Option 3: portable.** From [Releases](https://github.com/4leX-42/PathShrink/releases/latest), download
+`PathShrink.zip`, unzip and double-click `PathShrink.exe`, or download `PathShrink-script.zip`, unzip and
+double-click `PathShrink.cmd`. The exe is not signed: if SmartScreen stops it, choose *More info*, *Run
+anyway*.
 
 **Files open in another program or no permission.** When an item cannot be renamed, PathShrink says
 which program holds it open and offers to close that program and retry only the failed items (it asks
@@ -83,7 +92,7 @@ lost. OneDrive may then download the cloud copies again at the old names. Once i
 file at the new place and takes out only the identical ones (moved out of OneDrive, never deleted
 from this PC). If OneDrive then asks again, *Delete* is right that time: they are copies.
 
-**Option 3: PowerShell Gallery** *(planned)*:
+**Option 4: PowerShell Gallery** *(planned)*:
 
 ```powershell
 Install-Module PathShrink -Scope CurrentUser
@@ -213,6 +222,9 @@ the revert once OneDrive syncs.
 
 ## Known limitations
 
+- **The exe is not signed.** Some antivirus and EDR products stop it. Use the route without the exe, or
+  ask whoever manages the product to review it. It only opens `PathShrink.ps1`, and its source is
+  `tools/Launcher.cs`.
 - **Constrained Language Mode** (AppLocker or WDAC in some companies) blocks the window. The
   command line works where the module can load; signed builds are not provided yet.
 - **AllSigned execution policy** set by Group Policy blocks unsigned scripts, including this one.
