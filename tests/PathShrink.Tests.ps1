@@ -212,7 +212,7 @@ Describe 'Shortcuts to other libraries' {
         $rows[0].OverServer | Should -Be 0
     }
     It 'a plain run lists it with the command, and does not say there is nothing to change' {
-        $out = Invoke-PathShrink -Path $od -WhatIf -ReportFolder $rep 6>&1 | Out-String
+        $out = Invoke-PathShrink -Path $od -WhatIf -ReportFolder $rep 6>&1 | Out-String -Width 4096
         $out | Should -Match ([regex]::Escape(('-Path "{0}" -LocalLimit 259' -f $sc)))
         $out | Should -Not -Match 'Nothing to change'
         $out | Should -Match 'No rename planned'
@@ -222,7 +222,7 @@ Describe 'Shortcuts to other libraries' {
         @($plan.Renames).Count | Should -Be 0
     }
     It 'keeps the server limit of the shortcut when -LocalLimit lowers the one of this folder' {
-        $out = Invoke-PathShrink -Path $od -LocalLimit 259 -WhatIf -ReportFolder $rep 6>&1 | Out-String
+        $out = Invoke-PathShrink -Path $od -LocalLimit 259 -WhatIf -ReportFolder $rep 6>&1 | Out-String -Width 4096
         $out | Should -Match 'above the 400 limit on the server'
     }
     It 'a failure on one shortcut is returned, not thrown' {
@@ -232,12 +232,12 @@ Describe 'Shortcuts to other libraries' {
     }
     It 'a shortcut that could not be read is reported, and is not "nothing to change"' {
         Mock -ModuleName PathShrink Get-PathShrinkShortcut { New-Object psobject -Property @{ Path = $sc; Items = 0; OverLocal = 0; LongestLocal = 0; OverServer = 0; LongestServer = 0; Error = 'boom' } }
-        $out = Invoke-PathShrink -Path $od -WhatIf -ReportFolder $rep 6>&1 | Out-String
+        $out = Invoke-PathShrink -Path $od -WhatIf -ReportFolder $rep 6>&1 | Out-String -Width 4096
         $out | Should -Match 'could not be read \(boom\)'
         $out | Should -Not -Match 'Nothing to change'
     }
     It 'warns that renames in a shared library are seen by everyone' {
-        $out = Invoke-PathShrink -Path $sc -LocalLimit 259 -WhatIf -ReportFolder $rep 6>&1 | Out-String
+        $out = Invoke-PathShrink -Path $sc -LocalLimit 259 -WhatIf -ReportFolder $rep 6>&1 | Out-String -Width 4096
         $out | Should -Match 'This folder is shared'
     }
     It 'warns for a shortcut to a folder in the OneDrive of someone else' {
@@ -245,16 +245,16 @@ Describe 'Shortcuts to other libraries' {
             New-Object psobject -Property @{ LocalPath = $od; Url = 'x'; Prefix = 'personal/ana_contoso_com/Documents/'; Type = 'mysite' }
             New-Object psobject -Property @{ LocalPath = $sc; Url = 'y'; Prefix = 'personal/luis_contoso_com/Documents/'; Type = 'mysite' }
         }
-        $out = Invoke-PathShrink -Path $sc -LocalLimit 259 -WhatIf -ReportFolder $rep 6>&1 | Out-String
+        $out = Invoke-PathShrink -Path $sc -LocalLimit 259 -WhatIf -ReportFolder $rep 6>&1 | Out-String -Width 4096
         $out | Should -Match 'This folder is shared'
     }
     It 'does not warn in the OneDrive of the user' {
-        $out = Invoke-PathShrink -Path $od -Limit 60 -Margin 0 -WhatIf -ReportFolder $rep 6>&1 | Out-String
+        $out = Invoke-PathShrink -Path $od -Limit 60 -Margin 0 -WhatIf -ReportFolder $rep 6>&1 | Out-String -Width 4096
         $out | Should -Not -Match 'This folder is shared'
     }
     It 'says nothing to change when the shortcut is fine too' {
         Mock -ModuleName PathShrink Get-PathShrinkShortcut { New-Object psobject -Property @{ Path = $sc; Items = 1; OverLocal = 0; LongestLocal = 90; OverServer = 0; LongestServer = 60; Error = $null } }
-        $out = Invoke-PathShrink -Path $od -WhatIf -ReportFolder $rep 6>&1 | Out-String
+        $out = Invoke-PathShrink -Path $od -WhatIf -ReportFolder $rep 6>&1 | Out-String -Width 4096
         $out | Should -Match 'Nothing to change'
         $out | Should -Not -Match 'To plan for it'
     }
