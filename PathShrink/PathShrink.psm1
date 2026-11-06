@@ -40,13 +40,31 @@ function ConvertTo-PersonalPrefix([string]$Upn) {
 # --------------------------------------------------------------------------------------
 # Registry readers (kept small so tests can mock them)
 # --------------------------------------------------------------------------------------
+function Get-OneDriveAddedScope {
+    # Folder inside the library that each shortcut points to, by scope id. The registry has it
+    # (FullRemotePath) only until the client restarts; these UTF-16 settings files keep it.
+    $map = @{}
+    $root = Join-Path $env:LOCALAPPDATA 'Microsoft\OneDrive\settings'
+    foreach ($d in @(Get-ChildItem -LiteralPath $root -Directory -Filter 'Business*' -ErrorAction SilentlyContinue)) {
+        foreach ($f in @(Get-ChildItem -LiteralPath $d.FullName -File -Filter '*.ini' -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^[0-9a-fA-F-]{36}\.ini$' })) {
+            try { $t = [IO.File]::ReadAllText($f.FullName, [Text.Encoding]::Unicode) } catch { Write-Verbose ('Not read: {0}' -f $f.FullName); continue }
+            foreach ($m in [regex]::Matches($t, '(?m)^AddedScope = \d+ ([0-9a-fA-F]{32}) .*"([^"]*)"\s*$')) { $map[$m.Groups[1].Value] = $m.Groups[2].Value }
+        }
+    }
+    $map
+}
+
 function Get-PathShrinkSyncMount {
     <#
     .SYNOPSIS
         Lists the folders the OneDrive client syncs for the current user, with the library URL of each.
+    .DESCRIPTION
+        For a shortcut to a folder, Prefix includes that folder: UrlNamespace is only the library,
+        and the server counts the whole path. TargetKnown is false when the folder cannot be read.
     #>
     [CmdletBinding()]
     param()
+    $scopes = Get-OneDriveAddedScope
     foreach ($k in @(Get-ChildItem 'HKCU:\Software\SyncEngines\Providers\OneDrive' -ErrorAction SilentlyContinue)) {
         $p = Get-ItemProperty $k.PSPath -ErrorAction SilentlyContinue
         if (-not $p) { continue }
@@ -54,11 +72,23 @@ function Get-PathShrinkSyncMount {
         if (-not ($names -contains 'MountPoint') -or -not $p.MountPoint) { continue }
         $url = $null; if ($names -contains 'UrlNamespace') { $url = [string]$p.UrlNamespace }
         $type = ''; if ($names -contains 'LibraryType') { $type = [string]$p.LibraryType }
+        $isFolder = ($names -contains 'IsFolderScope') -and ([string]$p.IsFolderScope -eq '1')
+        $prefix = $(if ($url) { Get-ServerPrefix $url } else { $null })
+        $known = -not $isFolder
+        if ($isFolder -and ($names -contains 'FullRemotePath') -and $p.FullRemotePath) {
+            $prefix = Get-ServerPrefix ([string]$p.FullRemotePath); $known = $true
+        } elseif ($isFolder -and $scopes.ContainsKey($k.PSChildName) -and $null -ne $prefix) {
+            $rel = [Uri]::UnescapeDataString($scopes[$k.PSChildName]).Trim('/')
+            if ($rel) { $prefix += $rel + '/' }
+            $known = $true
+        }
         New-Object psobject -Property @{
-            LocalPath = ([string]$p.MountPoint).TrimEnd('\')
-            Url       = $url
-            Prefix    = $(if ($url) { Get-ServerPrefix $url } else { $null })
-            Type      = $type
+            LocalPath   = ([string]$p.MountPoint).TrimEnd('\')
+            Url         = $url
+            Prefix      = $prefix
+            Type        = $type
+            IsFolder    = $isFolder
+            TargetKnown = $known
         }
     }
 }
@@ -153,10 +183,13 @@ function Get-PathShrinkLibrary {
         if ($prefixGiven) { $pre = $Prefix; $src = 'given' }
         if ($null -eq $pre) { throw "Could not read the library URL for $($mount.LocalPath). Pass -Prefix." }
         if ($pre -and -not $pre.EndsWith('/')) { $pre += '/' }
-        $isPersonal = $pre -like 'personal/*'
+        $isFolder = [bool]($mount.PSObject.Properties['IsFolder'] -and $mount.IsFolder)
+        $isPersonal = ($pre -like 'personal/*') -and -not $isFolder
         if (-not $email -and $account) { $email = $account.Email }
-        $kind = $(if ($isPersonal) { 'OneDrive' } else { 'SharePoint library' })
-        return New-PathShrinkLibrary -Path $Path -Base $mount.LocalPath -Prefix $pre -PrefixSource $src -Account $email -Personal:$isPersonal -Kind $kind -Mounts $mounts
+        $kind = $(if ($isFolder -and $account) { 'Shortcut' } elseif ($isPersonal) { 'OneDrive' } else { 'SharePoint library' })
+        $lib = New-PathShrinkLibrary -Path $Path -Base $mount.LocalPath -Prefix $pre -PrefixSource $src -Account $email -Personal:$isPersonal -Kind $kind -Mounts $mounts -Root $(if ($account) { $account.LocalPath } else { $mount.LocalPath })
+        $lib.TargetUnknown = $isFolder -and -not $mount.TargetKnown -and -not $prefixGiven
+        return $lib
     }
     if ($account) {
         if (-not $email) { $email = $account.Email }
@@ -167,13 +200,36 @@ function Get-PathShrinkLibrary {
         elseif ($email) { $pre = ConvertTo-PersonalPrefix $email; $src = 'computed from e-mail' }
         else { throw 'Could not read the OneDrive account e-mail. Pass -Upn.' }
         if ($pre -and -not $pre.EndsWith('/')) { $pre += '/' }
-        return New-PathShrinkLibrary -Path $Path -Base $account.LocalPath -Prefix $pre -PrefixSource $src -Account $email -Personal -Kind 'OneDrive' -Mounts $mounts
+        return New-PathShrinkLibrary -Path $Path -Base $account.LocalPath -Prefix $pre -PrefixSource $src -Account $email -Personal -Kind 'OneDrive' -Mounts $mounts -Root $account.LocalPath
     }
     throw "This folder is not inside OneDrive or a synced SharePoint library: $Path. Use -Root and -Prefix to analyse it anyway."
 }
 
+function Get-RenamedShortcut([string]$Path, [string]$Top, [object[]]$Mounts) {
+    # After a shortcut is renamed, the registry keeps the old name until OneDrive restarts, and its
+    # folder would be read as part of this library, with the wrong server path. A mount that is not on
+    # disk is not enough: one unticked in Choose folders stays in the registry too, even after a
+    # restart. It takes a folder that looks like a shortcut and that no mount explains.
+    $missing = @($Mounts | Where-Object { $_.LocalPath -ne $Top -and $_.LocalPath.StartsWith($Top + '\', [StringComparison]::OrdinalIgnoreCase) -and -not [IO.Directory]::Exists((ConvertTo-LongPath $_.LocalPath)) })
+    if (-not $missing.Count) { return }
+    $known = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($m in $Mounts) { [void]$known.Add($m.LocalPath) }
+    foreach ($n in 'Desktop', 'MyDocuments', 'MyPictures', 'MyMusic', 'MyVideos') { [void]$known.Add([Environment]::GetFolderPath($n)) }
+    foreach ($parent in @($missing | ForEach-Object { Split-Path $_.LocalPath -Parent } | Sort-Object -Unique)) {
+        $dirs = @()
+        try { $dirs = ([IO.DirectoryInfo](ConvertTo-LongPath $parent)).GetDirectories() } catch { Write-Verbose ('Not read: {0}' -f $parent) }
+        foreach ($d in $dirs) {
+            $full = ConvertFrom-LongPath $d.FullName
+            if ($known.Contains($full)) { continue }
+            if (-not (($d.Attributes -band [IO.FileAttributes]::ReadOnly) -and ($d.Attributes -band [IO.FileAttributes]::ReparsePoint))) { continue }
+            # Only if this scan would read it: inside the folder, or the folder itself.
+            if ($full -eq $Path -or $full.StartsWith($Path + '\', [StringComparison]::OrdinalIgnoreCase) -or $Path.StartsWith($full + '\', [StringComparison]::OrdinalIgnoreCase)) { $full }
+        }
+    }
+}
+
 function New-PathShrinkLibrary {
-    param([string]$Path, [string]$Base, [string]$Prefix, [string]$PrefixSource, [string]$Account, [switch]$Personal, [string]$Kind, [object[]]$Mounts = @())
+    param([string]$Path, [string]$Base, [string]$Prefix, [string]$PrefixSource, [string]$Account, [switch]$Personal, [string]$Kind, [object[]]$Mounts = @(), [string]$Root)
     $depth = 0
     if ($Path -ne $Base) { $depth = $Path.Substring($Base.Length + 1).Split('\').Count }
     # Never rename above the analysed folder, nor the first level of a personal OneDrive
@@ -182,10 +238,11 @@ function New-PathShrinkLibrary {
     if ($Personal) { $minDepth = [Math]::Max(1, $depth) }
     # Shortcuts to other libraries inside the folder have another server path: skipped.
     $skip = @($Mounts | Where-Object { $_.LocalPath -ne $Base -and $_.LocalPath.StartsWith($Path + '\', [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { $_.LocalPath })
+    $stale = @(Get-RenamedShortcut -Path $Path -Top $(if ($Root) { $Root } else { $Base }) -Mounts $Mounts)
     New-Object psobject -Property @{
         Path = $Path; Base = $Base; Prefix = $Prefix; PrefixSource = $PrefixSource
         Account = $Account; IsPersonal = [bool]$Personal; Kind = $Kind
-        MinRenameDepth = $minDepth; SkipPaths = $skip
+        MinRenameDepth = $minDepth; SkipPaths = $skip; StaleMounts = $stale; TargetUnknown = $false
     }
 }
 
@@ -263,19 +320,25 @@ function Get-PathShrinkShortcut {
     )
     foreach ($path in @($Library.SkipPaths)) {
         if (-not [IO.Directory]::Exists((ConvertTo-LongPath $path))) { continue }
-        $row = [ordered]@{ Path = $path; Items = 0; OverLocal = 0; LongestLocal = 0; OverServer = 0; LongestServer = 0; Error = $null }
+        $row = [ordered]@{ Path = $path; Items = 0; OverLocal = 0; LongestLocal = 0; OverServer = 0; LongestServer = 0; OverLocalShortName = 0; OverServerPaths = @(); TargetUnknown = $false; Error = $null }
         try {
             $inv = Get-PathShrinkInventory -Library (Get-PathShrinkLibrary -Path $path) -Exclude $Exclude
             $m = Get-PathShrinkLocalLength -Inventory $inv -LocalLimit $LocalLimit
             $row.Items = $inv.Items.Count
             $row.OverLocal = $m.OverLimit
             $row.LongestLocal = $m.Longest
+            $row.TargetUnknown = [bool]$inv.Library.TargetUnknown
             $pre = $inv.Library.Prefix.Length
+            # What a 2-character shortcut name would leave: it only changes the path on this PC.
+            $saved = [Math]::Max(0, (Split-Path $path -Leaf).Length - 2)
+            $first = New-Object System.Collections.Generic.List[string]
             foreach ($it in $inv.Items) {
                 $len = $pre + $it.Rel.Length
-                if ($len -gt $Limit) { $row.OverServer++ }
+                if ($len -gt $Limit) { $row.OverServer++; if ($first.Count -lt 3) { $first.Add((Join-Path $path $it.Rel)) } }
                 if ($len -gt $row.LongestServer) { $row.LongestServer = $len }
+                if (($path.Length + 1 + $it.Rel.Length - $saved) -gt $LocalLimit) { $row.OverLocalShortName++ }
             }
+            $row.OverServerPaths = @($first)
         } catch { $row.Error = $_.Exception.Message }
         New-Object psobject -Property $row
     }
@@ -1453,7 +1516,7 @@ function Invoke-PathShrink {
         Run it as the user who owns the OneDrive, without elevation.
         -Limit and -Margin are server lengths. Also reports the paths that are too long on this PC;
         -LocalLimit plans for those instead, using the matching server limit with no margin unless
-        -Margin is given. If OneDrive says to shorten a path by N characters, use its length minus N.
+        -Margin is given.
         Shortcuts to other libraries are not renamed from the folder above them: they are measured and
         listed, with the command to analyse each one.
     .EXAMPLE
@@ -1509,7 +1572,7 @@ function Invoke-PathShrink {
     Write-Host ('Items         : {0} read, {1} unreadable' -f $s.Items, $s.Unreadable)
     Write-Host ('Long paths    : {0} above {1} ({2} above the {3} limit)' -f $s.LongPaths, $plan.Target, $s.OverLimit, $Limit)
     Write-Host ('Plan          : {0} renames ({1} folders, {2} files) fix {3}; {4} without margin; {5} still too long' -f $s.Renames, $s.Folders, $s.Files, $s.Fixed, $s.NoMargin, $s.TooLong)
-    Write-Host ('On this PC    : {0} above {1} (longest {2}). The local path is {3} characters longer than the server path.' -f $local.OverLimit, $local.LocalLimit, $local.Longest, $local.Offset)
+    Write-Host ('On this PC    : {0} above {1} (longest {2}). The local path is {3} characters {4} than the server path.' -f $local.OverLimit, $local.LocalLimit, $local.Longest, [Math]::Abs($local.Offset), $(if ($local.Offset -lt 0) { 'shorter' } else { 'longer' }))
     if ($local.OverLimit -and -not $LocalLimit) { Write-Host ('                To plan for them, use -LocalLimit {0} (the same as -Limit {1} -Margin 0).' -f $local.LocalLimit, $local.ServerLimit) -ForegroundColor Yellow }
     if ($shortcuts.Count) {
         Write-Host ('Shortcuts     : {0} to other libraries, not part of this plan:' -f $shortcuts.Count)
@@ -1517,8 +1580,16 @@ function Invoke-PathShrink {
             if ($c.Error) { Write-Host ('  {0}: could not be read ({1})' -f $c.Path, $c.Error) -ForegroundColor Yellow; continue }
             $bad = $c.OverLocal -or $c.OverServer
             Write-Host ('  {0}: {1} items, {2} above {3} on this PC (longest {4}), {5} above the {6} limit on the server (longest {7})' -f $c.Path, $c.Items, $c.OverLocal, $local.LocalLimit, $c.LongestLocal, $c.OverServer, $shortcutLimit, $c.LongestServer) -ForegroundColor $(if ($bad) { 'Yellow' } else { 'Gray' })
+            if ($c.TargetUnknown) { Write-Host '    The folder it points to could not be read: the server lengths may be short.' -ForegroundColor Yellow }
+            foreach ($o in @($c.OverServerPaths)) { Write-Host ('    Only on this PC, the server does not accept it, and it stops the sync: {0}' -f $o) -ForegroundColor Yellow }
+            if ($c.OverLocal -and $c.OverLocalShortName -lt $c.OverLocal) { Write-Host ('    With a 2-character shortcut name, {0} above {1} on this PC. That changes nothing in the library.' -f $c.OverLocalShortName, $local.LocalLimit) -ForegroundColor Yellow }
             if ($bad) { Write-Host ('    To plan for it: -Path "{0}" -LocalLimit {1} -WhatIf' -f $c.Path, $local.LocalLimit) -ForegroundColor Yellow }
         }
+    }
+    if ($lib.TargetUnknown) { Write-Host 'The folder this shortcut points to could not be read: the server lengths may be short.' -ForegroundColor Yellow }
+    $stale = @($lib.StaleMounts)
+    if ($stale.Count) {
+        Write-Host ('This looks like a renamed shortcut that OneDrive has not updated yet: {0}. Restart OneDrive and run this again. Nothing is renamed until then.' -f ($stale -join ', ')) -ForegroundColor Yellow
     }
     Write-Host ('Reports       : {0}' -f $folder)
     if ($plan.Renames.Count) {
@@ -1528,16 +1599,19 @@ function Invoke-PathShrink {
     }
     if ($s.TooLong -and -not $AllowTrim) { Write-Host 'Some paths only fit by removing letters: run again with -AllowTrim to see that plan.' -ForegroundColor Yellow }
     if (-not $plan.Renames.Count) {
-        $pending = ($local.OverLimit -and -not $LocalLimit) -or @($shortcuts | Where-Object { $_.Error -or $_.OverLocal -or $_.OverServer }).Count
+        $pending = $stale.Count -or ($local.OverLimit -and -not $LocalLimit) -or @($shortcuts | Where-Object { $_.Error -or $_.OverLocal -or $_.OverServer }).Count
         if ($s.LongPaths) { Write-Host 'No automatic change is possible.' -ForegroundColor Green }
         elseif ($pending) { Write-Host 'No rename planned, but there are long paths: see above.' -ForegroundColor Yellow }
         else { Write-Host 'Nothing to change.' -ForegroundColor Green }
         if ($PassThru) { return $plan }
         return
     }
+    if ($stale.Count) {
+        if ($PassThru) { return $plan }
+        return
+    }
     # A shortcut can also point to a folder in the OneDrive of someone else.
-    $own = @(Get-PathShrinkAccount | Where-Object { $_.LocalPath -eq $lib.Base }).Count
-    if ($lib.Prefix -notlike 'personal/*' -or ($lib.Kind -ne 'Folder' -and -not $own)) {
+    if ($lib.Prefix -notlike 'personal/*' -or $lib.Kind -eq 'Shortcut') {
         Write-Host 'This folder is shared: everyone with access will see the new names. If only this PC has the problem, stop syncing the folder instead (OneDrive settings, Choose folders).' -ForegroundColor Yellow
     }
     if ($PSCmdlet.ShouldProcess(('{0} items in {1}. Shortcuts and links to renamed folders stop working.' -f $s.Renames, $lib.Path), 'Rename')) {

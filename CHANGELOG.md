@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.2] - 2026-11-06
+
+Tested with the real OneDrive client on a real shortcut.
+
+### Fixed
+- **Server length of a shortcut to a folder.** The registry value used for the library URL leaves out
+  the folder the shortcut points to, so every server length came out short by that folder (16
+  characters in the test: 383 reported for a real 399). It is now read from the client. If it cannot
+  be read, PathShrink says so.
+- **Renamed shortcuts.** The registry keeps the old name until OneDrive restarts, so the folder was read
+  as part of the personal OneDrive. PathShrink now says to restart OneDrive and renames nothing until then.
+- "The local path is -13 characters longer" now reads "13 characters shorter".
+- A shortcut to the OneDrive of someone else no longer counts as a personal OneDrive.
+
+### Added
+- For each shortcut: the items only on this PC that stop the sync, and what a 2-character shortcut name
+  would leave.
+- The window offers the shortcuts as folders, has the limit on this PC in Pro mode, and reports paths too
+  long on this PC, shortcuts and shared folders.
+
+### Changed
+- Removed the advice to use the length minus the N in "shorten the path by N characters": in the test
+  OneDrive said 1 for paths 1, 7 and 17 over the limit.
+
 ## [1.3.1] - 2026-11-06
 
 ### Fixed

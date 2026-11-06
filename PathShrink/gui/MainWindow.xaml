@@ -1099,6 +1099,10 @@
                   <TextBox x:Name="OptMargin" Style="{StaticResource Field}" Height="38" Padding="8,0" Text="20" AutomationProperties.Name="{{side.margin}}"/>
                 </StackPanel>
               </Grid>
+              <StackPanel Margin="0,0,0,18">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,6"><TextBlock Text="{{side.localLimit}}" Style="{StaticResource Label}"/><Button Style="{StaticResource HelpDot}" Tag="localLimit"/></StackPanel>
+                <TextBox x:Name="OptLocalLimit" Style="{StaticResource Field}" Height="38" Padding="8,0" Text="0" AutomationProperties.Name="{{side.localLimit}}"/>
+              </StackPanel>
 
               <TextBlock Text="{{side.names}}" Style="{StaticResource Caption}" Margin="0,0,0,8"/>
               <StackPanel Orientation="Horizontal" Margin="0,0,0,10">

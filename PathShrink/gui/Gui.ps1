@@ -7,7 +7,7 @@
 # the XAML holds {{key}} markers that are filled in before it is parsed.
 
 $script:PathShrinkLanguages = @('en', 'es', 'pt')
-$script:HelpKeys = @('longPath', 'pathLength', 'scan', 'plan', 'dryRun', 'apply', 'revert', 'report', 'clean', 'join', 'trim', 'limit', 'margin', 'minName', 'exclude', 'protect', 'prefix', 'limits')
+$script:HelpKeys = @('longPath', 'pathLength', 'scan', 'plan', 'dryRun', 'apply', 'revert', 'report', 'clean', 'join', 'trim', 'limit', 'localLimit', 'margin', 'minName', 'exclude', 'protect', 'prefix', 'limits')
 
 # Windows folder picker (IFileOpenDialog with FOS_PICKFOLDERS): the Explorer window with the
 # address bar, search box and navigation pane. Windows PowerShell 5.1 has no managed wrapper
@@ -81,7 +81,10 @@ function Get-PathShrinkLocation {
         if (-not $m.LocalPath -or -not (Test-Path -LiteralPath $m.LocalPath)) { continue }
         $inside = $false
         foreach ($x in $list) { if ($m.LocalPath -eq $x.Path -or $m.LocalPath.StartsWith($x.Path + '\', [StringComparison]::OrdinalIgnoreCase)) { $inside = $true } }
+        # A shortcut inside a OneDrive folder is skipped when that folder is scanned: offer it on its own.
+        $folderScope = [bool]($m.PSObject.Properties['IsFolder'] -and $m.IsFolder)
         if (-not $inside) { $list += [pscustomobject]@{ Label = 'SharePoint  ' + (Split-Path $m.LocalPath -Leaf); Path = $m.LocalPath } }
+        elseif ($folderScope) { $list += [pscustomobject]@{ Label = (T 'kind.Shortcut') + '  ' + (Split-Path $m.LocalPath -Leaf); Path = $m.LocalPath } }
     }
     $list
 }
@@ -235,7 +238,7 @@ function Show-PathShrinkWindow {
             'HistReady', 'HistAlready', 'HistBlocked', 'HistBlockedList', 'BtnHistRevert', 'BtnHistCheck', 'BtnHistDupes', 'BtnHistReport', 'BtnUndoFile', 'BtnOpenReports',
             'PanelDemo', 'BtnDemoBack', 'DemoEx1', 'DemoEx2', 'DemoEx3', 'DemoS0', 'DemoS1', 'DemoS2', 'DemoS3', 'DemoStepInfo', 'BtnDemoPlay', 'DemoLen', 'DemoRuler', 'DemoBar',
             'DemoTargetLine', 'DemoLimitLine', 'DemoTargetLabel', 'DemoLimitLabel', 'DemoTree', 'DemoExplain',
-            'RulesChip', 'RulesState', 'OptLimit', 'OptMargin', 'OptTrim', 'MinNameRow', 'OptMinName', 'OptExclude', 'OptProtect', 'OptPrefix', 'RulesDirty', 'BtnReplan', 'BtnEnv', 'BtnCopyCli',
+            'RulesChip', 'RulesState', 'OptLimit', 'OptLocalLimit', 'OptMargin', 'OptTrim', 'MinNameRow', 'OptMinName', 'OptExclude', 'OptProtect', 'OptPrefix', 'RulesDirty', 'BtnReplan', 'BtnEnv', 'BtnCopyCli',
             'StatusText', 'StatusRight', 'HelpLayer', 'HelpScrim', 'HelpDrawer', 'BtnHelpClose', 'HelpList', 'HelpPop', 'HelpPopTitle', 'HelpPopBody', 'HelpPopMore',
             'Overlay', 'DialogBox', 'DlgTitle', 'DlgBody', 'DlgNo', 'DlgYes')) {
         $ui[$n] = $win.FindName($n)
@@ -352,12 +355,16 @@ function Show-PathShrinkWindow {
             MinNameLength = (Get-IntOption $ui.OptMinName 3 200 (T 'side.minName'))
             AllowTrim     = [bool]$ui.OptTrim.IsChecked
             Protect       = @(Get-Lines $ui.OptProtect)
+            LocalLimit    = (Get-IntOption $ui.OptLocalLimit 0 400 (T 'side.localLimit'))
         }
+        if ($a.LocalLimit -and $a.LocalLimit -lt 50) { throw (T 'opt.localLimit') }
+        # Same rule as the command line: with a limit on this PC there is no margin unless one is typed.
+        if ($a.LocalLimit -and $ui.OptMargin.Text.Trim() -eq '20') { $a.Margin = 0 }
         if ($a.Margin -ge $a.Limit) { throw (T 'opt.marginLimit') }
         $a
     }
     function Test-CustomRules {
-        $ui.OptLimit.Text.Trim() -ne '400' -or $ui.OptMargin.Text.Trim() -ne '20' -or $ui.OptTrim.IsChecked -or $ui.OptMinName.Text.Trim() -ne '20' -or
+        $ui.OptLimit.Text.Trim() -ne '400' -or $ui.OptLocalLimit.Text.Trim() -ne '0' -or $ui.OptMargin.Text.Trim() -ne '20' -or $ui.OptTrim.IsChecked -or $ui.OptMinName.Text.Trim() -ne '20' -or
         @(Get-Lines $ui.OptExclude).Count -or @(Get-Lines $ui.OptProtect).Count -or $ui.OptPrefix.Text.Trim()
     }
     function Update-RulesState {
@@ -368,7 +375,8 @@ function Show-PathShrinkWindow {
         $dirty = $false
         if ($state.Plan -and $state.ScanArgs) {
             $p = $state.ScanArgs.PlanArgs
-            $dirty = $ui.OptLimit.Text.Trim() -ne [string]$p.Limit -or $ui.OptMargin.Text.Trim() -ne [string]$p.Margin -or
+            $dirty = $ui.OptLimit.Text.Trim() -ne [string]$p.Limit -or $ui.OptLocalLimit.Text.Trim() -ne [string]$p.LocalLimit -or
+                     ($ui.OptMargin.Text.Trim() -ne [string]$p.Margin -and -not ($p.LocalLimit -and $ui.OptMargin.Text.Trim() -eq '20')) -or
                      [bool]$ui.OptTrim.IsChecked -ne [bool]$p.AllowTrim -or ($p.AllowTrim -and $ui.OptMinName.Text.Trim() -ne [string]$p.MinNameLength) -or
                      ((Get-Lines $ui.OptProtect) -join '|') -ne (@($p.Protect) -join '|') -or
                      ((Get-Lines $ui.OptExclude) -join '|') -ne (@($state.ScanArgs.Exclude) -join '|') -or
@@ -510,14 +518,27 @@ function Show-PathShrinkWindow {
                     $inv = Get-PathShrinkInventory -Library $lib -Exclude $A.Exclude -OnProgress { param($n) $Sync.Count = $n }
                     $Sync.Phase = 'plan'
                     $pa = $A.PlanArgs
-                    $plan = New-PathShrinkPlan -Inventory $inv -Limit $pa.Limit -Margin $pa.Margin -AllowTrim:$pa.AllowTrim -MinNameLength $pa.MinNameLength -Protect $pa.Protect
+                    $local = Get-PathShrinkLocalLength -Inventory $inv -LocalLimit $(if ($pa.LocalLimit) { $pa.LocalLimit } else { 259 })
+                    $shortcuts = @(Get-PathShrinkShortcut -Library $lib -LocalLimit $local.LocalLimit -Limit $pa.Limit -Exclude $A.Exclude)
+                    $lim = $pa.Limit
+                    if ($pa.LocalLimit) {
+                        if ($local.ServerLimit -lt 50) { throw ('A local limit of {0} leaves only {1} characters on the server.' -f $pa.LocalLimit, $local.ServerLimit) }
+                        $lim = [Math]::Min($lim, $local.ServerLimit)
+                    }
+                    $plan = New-PathShrinkPlan -Inventory $inv -Limit $lim -Margin $pa.Margin -AllowTrim:$pa.AllowTrim -MinNameLength $pa.MinNameLength -Protect $pa.Protect
                     $issues = @(Find-PathShrinkSyncIssue -Inventory $inv)
-                    $Sync.Result = @{ Library = $lib; Inventory = $inv; Plan = $plan; Issues = $issues }
+                    $Sync.Result = @{ Library = $lib; Inventory = $inv; Plan = $plan; Issues = $issues; Local = $local; Shortcuts = $shortcuts }
                 }
                 'plan' {
                     $pa = $A.PlanArgs
-                    $plan = New-PathShrinkPlan -Inventory $A.Inventory -Limit $pa.Limit -Margin $pa.Margin -AllowTrim:$pa.AllowTrim -MinNameLength $pa.MinNameLength -Protect $pa.Protect
-                    $Sync.Result = @{ Library = $A.Inventory.Library; Inventory = $A.Inventory; Plan = $plan; Issues = $A.Issues }
+                    $local = Get-PathShrinkLocalLength -Inventory $A.Inventory -LocalLimit $(if ($pa.LocalLimit) { $pa.LocalLimit } else { 259 })
+                    $lim = $pa.Limit
+                    if ($pa.LocalLimit) {
+                        if ($local.ServerLimit -lt 50) { throw ('A local limit of {0} leaves only {1} characters on the server.' -f $pa.LocalLimit, $local.ServerLimit) }
+                        $lim = [Math]::Min($lim, $local.ServerLimit)
+                    }
+                    $plan = New-PathShrinkPlan -Inventory $A.Inventory -Limit $lim -Margin $pa.Margin -AllowTrim:$pa.AllowTrim -MinNameLength $pa.MinNameLength -Protect $pa.Protect
+                    $Sync.Result = @{ Library = $A.Inventory.Library; Inventory = $A.Inventory; Plan = $plan; Issues = $A.Issues; Local = $local; Shortcuts = $A.Shortcuts }
                 }
                 'apply' {
                     # The plan report goes in the same folder as undo.csv, so one folder tells the whole story.
@@ -630,10 +651,11 @@ function Show-PathShrinkWindow {
         if (-not $sameScope) { Start-Scan; return }
         $state.ScanArgs.PlanArgs = $pa
         Add-Log ('Re-plan: limit {0}, margin {1}, trim {2}, shortest name {3}' -f $pa.Limit, $pa.Margin, $pa.AllowTrim, $pa.MinNameLength)
-        Start-Work 'plan' @{ Inventory = $state.Inventory; Issues = $state.Issues; PlanArgs = $pa } (T 'work.planning')
+        Start-Work 'plan' @{ Inventory = $state.Inventory; Issues = $state.Issues; PlanArgs = $pa; Shortcuts = $state.Shortcuts } (T 'work.planning')
     }
     function Complete-Scan($R) {
         $state.Library = $R.Library; $state.Inventory = $R.Inventory; $state.Plan = $R.Plan; $state.Issues = @($R.Issues); $state.Result = $null
+        $state.Local = $R.Local; $state.Shortcuts = @($R.Shortcuts)
         Set-Library $R.Library
         $state.Page = 0
         $sw = [Diagnostics.Stopwatch]::StartNew()
@@ -680,6 +702,14 @@ function Show-PathShrinkWindow {
             elseif ($left) { $msg += T 'explain.tooDeep' $left }
         }
         if ($sum.Unreadable) { $msg += T 'explain.unreadable' $sum.Unreadable }
+        if ($state.Local -and $state.Local.OverLimit) { $msg += T 'explain.localPc' $state.Local.OverLimit $state.Local.LocalLimit $state.Local.Longest }
+        foreach ($c in @($state.Shortcuts)) {
+            if ($c.Error) { $msg += T 'explain.shortcutError' $c.Path; continue }
+            if ($c.OverLocal -or $c.OverServer) { $msg += T 'explain.shortcut' $c.Path $c.OverLocal $state.Local.LocalLimit $c.OverServer }
+        }
+        if ($state.Library.TargetUnknown) { $msg += T 'explain.targetUnknown' }
+        if (@($state.Library.StaleMounts).Count) { $msg += T 'explain.stale' (@($state.Library.StaleMounts) -join ', ') }
+        if ($sum.Renames -and ($state.Library.Prefix -notlike 'personal/*' -or $state.Library.Kind -eq 'Shortcut')) { $msg += T 'explain.shared' }
         $ui.ExplainText.Text = $msg -join "`n"
         $ui.TrimOfferRow.Visibility = $(if ($left -and -not $p.AllowTrim) { 'Visible' } else { 'Collapsed' })
 
@@ -1083,6 +1113,8 @@ function Show-PathShrinkWindow {
 
     # ---------------------------------------------------------------- apply
     function Confirm-Apply {
+        # Same stop as the command line: its server lengths cannot be trusted until OneDrive restarts.
+        if (@($state.Library.StaleMounts).Count) { Show-Error (T 'err.apply') (T 'explain.stale' (@($state.Library.StaleMounts) -join ', ')); return }
         $sel = @($state.Plan.Renames | Where-Object { $_.Selected })
         if (-not $sel.Count) { return }
         $sum = Get-PathShrinkSummary -Plan $state.Plan

@@ -231,7 +231,7 @@ the revert once OneDrive syncs.
 | Some items *could not be renamed* | A file is open (Word, Excel, Outlook attachment preview) or access is denied. Close it and scan again. |
 | The window does not open, nothing happens | Run `.\PathShrink.ps1` from a PowerShell window to see the error. Constrained Language Mode or AllSigned policy are the usual causes. |
 | *path too long* still shown in OneDrive | Give the client a few minutes to sync the renames; then scan again. |
-| *path too long* in OneDrive, but nothing over 400 here | OneDrive can warn on a path that fits the server limit, often inside a shortcut, which a scan of the folder above it skips. If it says to shorten the path by N characters, use its length minus N as the limit: `-Path "<shortcut>" -LocalLimit <that number> -WhatIf`. In a shared library, a shorter shortcut name or stopping the sync of that folder changes nothing for other people; renaming folders inside it does. |
+| OneDrive shows *path too long* and blocks everything | A file only on this PC whose server path is over 400 cannot upload, and while the window is open Choose folders does not apply. PathShrink lists those files, also inside shortcuts: move them out or shorten them and press *Try again*. Do not trust the number of characters it asks for, and do not press *Quit* (closes OneDrive) or *set up OneDrive* (unlinks this PC). |
 | Files downloaded from the zip are blocked | `Get-ChildItem -Recurse \| Unblock-File` in the folder, or use `install.ps1`. |
 
 *Check this computer* (Pro) or `Get-PathShrinkEnvironment` prints the facts that matter for a bug report.
