@@ -236,6 +236,51 @@ function Get-PathShrinkLocalLength {
     })
 }
 
+function Get-PathShrinkShortcut {
+    <#
+    .SYNOPSIS
+        Measures the shortcuts to other libraries that a scan of this folder leaves out. Read only.
+    .DESCRIPTION
+        A shortcut has another server path, so a scan of the folder above it skips it. Its deep paths
+        are still on this PC: without this, a plain run says there is nothing to change while OneDrive
+        and Windows fail on them. Only what is on disk is measured: an item that OneDrive never
+        brought to this PC does not appear.
+    .PARAMETER Library
+        Output of Get-PathShrinkLibrary.
+    .PARAMETER LocalLimit
+        Longest local path that should work.
+    .PARAMETER Limit
+        Server limit.
+    .PARAMETER Exclude
+        Patterns of folders or files that are not measured.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][psobject]$Library,
+        [ValidateRange(50, 400)][int]$LocalLimit = 259,
+        [ValidateRange(50, 400)][int]$Limit = 400,
+        [string[]]$Exclude = @()
+    )
+    foreach ($path in @($Library.SkipPaths)) {
+        if (-not [IO.Directory]::Exists((ConvertTo-LongPath $path))) { continue }
+        $row = [ordered]@{ Path = $path; Items = 0; OverLocal = 0; LongestLocal = 0; OverServer = 0; LongestServer = 0; Error = $null }
+        try {
+            $inv = Get-PathShrinkInventory -Library (Get-PathShrinkLibrary -Path $path) -Exclude $Exclude
+            $m = Get-PathShrinkLocalLength -Inventory $inv -LocalLimit $LocalLimit
+            $row.Items = $inv.Items.Count
+            $row.OverLocal = $m.OverLimit
+            $row.LongestLocal = $m.Longest
+            $pre = $inv.Library.Prefix.Length
+            foreach ($it in $inv.Items) {
+                $len = $pre + $it.Rel.Length
+                if ($len -gt $Limit) { $row.OverServer++ }
+                if ($len -gt $row.LongestServer) { $row.LongestServer = $len }
+            }
+        } catch { $row.Error = $_.Exception.Message }
+        New-Object psobject -Property $row
+    }
+}
+
 function Get-PathShrinkInventory {
     <#
     .SYNOPSIS
@@ -1408,7 +1453,9 @@ function Invoke-PathShrink {
         Run it as the user who owns the OneDrive, without elevation.
         -Limit and -Margin are server lengths. Also reports the paths that are too long on this PC;
         -LocalLimit plans for those instead, using the matching server limit with no margin unless
-        -Margin is given.
+        -Margin is given. If OneDrive says to shorten a path by N characters, use its length minus N.
+        Shortcuts to other libraries are not renamed from the folder above them: they are measured and
+        listed, with the command to analyse each one.
     .EXAMPLE
         Invoke-PathShrink -WhatIf
         Scans the OneDrive of the current user and shows what would change.
@@ -1444,6 +1491,9 @@ function Invoke-PathShrink {
     Write-Host ('Scanning {0} ...' -f $lib.Path) -ForegroundColor Cyan
     $inv = Get-PathShrinkInventory -Library $lib -Exclude $Exclude
     $local = Get-PathShrinkLocalLength -Inventory $inv -LocalLimit $(if ($LocalLimit) { $LocalLimit } else { 259 })
+    # Measured before -LocalLimit lowers $Limit: that lower limit is only valid for this folder.
+    $shortcutLimit = $Limit
+    $shortcuts = @(Get-PathShrinkShortcut -Library $lib -LocalLimit $local.LocalLimit -Limit $shortcutLimit -Exclude $Exclude)
     if ($LocalLimit) {
         if ($local.ServerLimit -lt 50) { throw ('A local limit of {0} leaves only {1} characters on the server: the local folder is too long.' -f $LocalLimit, $local.ServerLimit) }
         $Limit = [Math]::Min($Limit, $local.ServerLimit)
@@ -1461,6 +1511,15 @@ function Invoke-PathShrink {
     Write-Host ('Plan          : {0} renames ({1} folders, {2} files) fix {3}; {4} without margin; {5} still too long' -f $s.Renames, $s.Folders, $s.Files, $s.Fixed, $s.NoMargin, $s.TooLong)
     Write-Host ('On this PC    : {0} above {1} (longest {2}). The local path is {3} characters longer than the server path.' -f $local.OverLimit, $local.LocalLimit, $local.Longest, $local.Offset)
     if ($local.OverLimit -and -not $LocalLimit) { Write-Host ('                To plan for them, use -LocalLimit {0} (the same as -Limit {1} -Margin 0).' -f $local.LocalLimit, $local.ServerLimit) -ForegroundColor Yellow }
+    if ($shortcuts.Count) {
+        Write-Host ('Shortcuts     : {0} to other libraries, not part of this plan:' -f $shortcuts.Count)
+        foreach ($c in $shortcuts) {
+            if ($c.Error) { Write-Host ('  {0}: could not be read ({1})' -f $c.Path, $c.Error) -ForegroundColor Yellow; continue }
+            $bad = $c.OverLocal -or $c.OverServer
+            Write-Host ('  {0}: {1} items, {2} above {3} on this PC (longest {4}), {5} above the {6} limit on the server (longest {7})' -f $c.Path, $c.Items, $c.OverLocal, $local.LocalLimit, $c.LongestLocal, $c.OverServer, $shortcutLimit, $c.LongestServer) -ForegroundColor $(if ($bad) { 'Yellow' } else { 'Gray' })
+            if ($bad) { Write-Host ('    To plan for it: -Path "{0}" -LocalLimit {1} -WhatIf' -f $c.Path, $local.LocalLimit) -ForegroundColor Yellow }
+        }
+    }
     Write-Host ('Reports       : {0}' -f $folder)
     if ($plan.Renames.Count) {
         $plan.Renames | Sort-Object Rel | Select-Object -First 25 | Format-Table @{ n = 'Saved'; e = { $_.Saved } }, @{ n = 'Items'; e = { $_.Affects } }, Method, OriginalName, NewName,
@@ -1469,9 +1528,17 @@ function Invoke-PathShrink {
     }
     if ($s.TooLong -and -not $AllowTrim) { Write-Host 'Some paths only fit by removing letters: run again with -AllowTrim to see that plan.' -ForegroundColor Yellow }
     if (-not $plan.Renames.Count) {
-        Write-Host $(if ($s.LongPaths) { 'No automatic change is possible.' } else { 'Nothing to change.' }) -ForegroundColor Green
+        $pending = ($local.OverLimit -and -not $LocalLimit) -or @($shortcuts | Where-Object { $_.Error -or $_.OverLocal -or $_.OverServer }).Count
+        if ($s.LongPaths) { Write-Host 'No automatic change is possible.' -ForegroundColor Green }
+        elseif ($pending) { Write-Host 'No rename planned, but there are long paths: see above.' -ForegroundColor Yellow }
+        else { Write-Host 'Nothing to change.' -ForegroundColor Green }
         if ($PassThru) { return $plan }
         return
+    }
+    # A shortcut can also point to a folder in the OneDrive of someone else.
+    $own = @(Get-PathShrinkAccount | Where-Object { $_.LocalPath -eq $lib.Base }).Count
+    if ($lib.Prefix -notlike 'personal/*' -or ($lib.Kind -ne 'Folder' -and -not $own)) {
+        Write-Host 'This folder is shared: everyone with access will see the new names. If only this PC has the problem, stop syncing the folder instead (OneDrive settings, Choose folders).' -ForegroundColor Yellow
     }
     if ($PSCmdlet.ShouldProcess(('{0} items in {1}. Shortcuts and links to renamed folders stop working.' -f $s.Renames, $lib.Path), 'Rename')) {
         $res = Invoke-PathShrinkPlan -Plan $plan -ReportFolder $folder -Confirm:$false
@@ -1520,6 +1587,6 @@ function Start-PathShrink {
     } while ($next)
 }
 
-Export-ModuleMember -Function Get-PathShrinkLibrary, Get-PathShrinkAccount, Get-PathShrinkSyncMount, Get-PathShrinkInventory, Get-PathShrinkLocalLength,
+Export-ModuleMember -Function Get-PathShrinkLibrary, Get-PathShrinkAccount, Get-PathShrinkSyncMount, Get-PathShrinkInventory, Get-PathShrinkLocalLength, Get-PathShrinkShortcut,
     New-PathShrinkPlan, Update-PathShrinkPlan, Test-PathShrinkRename, Set-PathShrinkRename, Get-PathShrinkSummary, Invoke-PathShrinkPlan, Undo-PathShrink, Test-PathShrinkUndo, Get-PathShrinkHistory,
     Find-PathShrinkSyncIssue, Export-PathShrinkReport, Get-PathShrinkEnvironment, Get-PathShrinkLock, Stop-PathShrinkLock, Find-PathShrinkDuplicate, Move-PathShrinkDuplicate, Invoke-PathShrink, Start-PathShrink

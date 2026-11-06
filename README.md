@@ -27,7 +27,8 @@ checks the result on disk and keeps an undo file.
 - **Server-side length, not local length.** Reads the library URL from the OneDrive client
   (personal OneDrive, synced SharePoint libraries and their prefixes) and counts what Microsoft counts.
   The command line also reports the paths over 259 characters on the PC, which include the local folder
-  and the name of the shortcut; `-LocalLimit 259` plans for those.
+  and the name of the shortcut; `-LocalLimit 259` plans for those. It also measures the shortcuts to
+  other libraries that the scan leaves out, and prints the command to analyse each one.
 - **Lossless first.** Step 1 removes double spaces and spaces around `-` `_` `,`. Step 2 joins words
   (`Tax Returns` becomes `TaxReturns`). It stops as soon as a path fits.
 - **Letters only if you say so.** Optional trimming cuts letters from the end of the longest folder
@@ -230,6 +231,7 @@ the revert once OneDrive syncs.
 | Some items *could not be renamed* | A file is open (Word, Excel, Outlook attachment preview) or access is denied. Close it and scan again. |
 | The window does not open, nothing happens | Run `.\PathShrink.ps1` from a PowerShell window to see the error. Constrained Language Mode or AllSigned policy are the usual causes. |
 | *path too long* still shown in OneDrive | Give the client a few minutes to sync the renames; then scan again. |
+| *path too long* in OneDrive, but nothing over 400 here | OneDrive can warn on a path that fits the server limit, often inside a shortcut, which a scan of the folder above it skips. If it says to shorten the path by N characters, use its length minus N as the limit: `-Path "<shortcut>" -LocalLimit <that number> -WhatIf`. In a shared library, a shorter shortcut name or stopping the sync of that folder changes nothing for other people; renaming folders inside it does. |
 | Files downloaded from the zip are blocked | `Get-ChildItem -Recurse \| Unblock-File` in the folder, or use `install.ps1`. |
 
 *Check this computer* (Pro) or `Get-PathShrinkEnvironment` prints the facts that matter for a bug report.

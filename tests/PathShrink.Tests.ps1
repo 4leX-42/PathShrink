@@ -184,6 +184,82 @@ Describe 'Local path length' {
     }
 }
 
+Describe 'Shortcuts to other libraries' {
+    BeforeAll {
+        $root = New-TestRoot
+        $od = Join-Path $root 'OneDrive'
+        $sc = Join-Path $od 'AV'
+        $deep = 'AV\' + ((1..9 | ForEach-Object { 'Carpeta con un nombre bastante largo ' + $_ }) -join '\') + '\f.txt'
+        New-TestTree $od @('Desktop\a.txt', $deep)
+        $rep = Join-Path $root 'r'
+        Mock -ModuleName PathShrink Get-PathShrinkAccount { New-Object psobject -Property @{ LocalPath = $od; Email = 'ana@contoso.com'; Name = 'Business1'; TenantName = '' } }
+        Mock -ModuleName PathShrink Get-PathShrinkSyncMount {
+            New-Object psobject -Property @{ LocalPath = $od; Url = 'x'; Prefix = 'personal/ana_contoso_com/Documents/'; Type = 'mysite' }
+            New-Object psobject -Property @{ LocalPath = $sc; Url = 'y'; Prefix = 'sites/Legal/Files/'; Type = 'teamsite' }
+            New-Object psobject -Property @{ LocalPath = (Join-Path $od 'Gone'); Url = 'z'; Prefix = 'sites/Gone/Files/'; Type = 'teamsite' }
+        }
+    }
+    AfterAll { Remove-TestRoot $root }
+
+    It 'measures the shortcut that the scan leaves out, and ignores one no longer on disk' {
+        $rows = @(Get-PathShrinkShortcut -Library (Get-PathShrinkLibrary -Path $od))
+        $rows.Count | Should -Be 1
+        $rows[0].Path | Should -Be $sc
+        $rel = $deep.Substring(3)
+        $rows[0].LongestLocal | Should -Be ($sc.Length + 1 + $rel.Length)
+        $rows[0].LongestServer | Should -Be ('sites/Legal/Files/'.Length + $rel.Length)
+        $rows[0].OverLocal | Should -BeGreaterThan 0
+        $rows[0].OverServer | Should -Be 0
+    }
+    It 'a plain run lists it with the command, and does not say there is nothing to change' {
+        $out = Invoke-PathShrink -Path $od -WhatIf -ReportFolder $rep 6>&1 | Out-String
+        $out | Should -Match ([regex]::Escape(('-Path "{0}" -LocalLimit 259' -f $sc)))
+        $out | Should -Not -Match 'Nothing to change'
+        $out | Should -Match 'No rename planned'
+    }
+    It 'a plain run does not plan anything inside it' {
+        $plan = Invoke-PathShrink -Path $od -WhatIf -PassThru -ReportFolder $rep 6>$null
+        @($plan.Renames).Count | Should -Be 0
+    }
+    It 'keeps the server limit of the shortcut when -LocalLimit lowers the one of this folder' {
+        $out = Invoke-PathShrink -Path $od -LocalLimit 259 -WhatIf -ReportFolder $rep 6>&1 | Out-String
+        $out | Should -Match 'above the 400 limit on the server'
+    }
+    It 'a failure on one shortcut is returned, not thrown' {
+        Mock -ModuleName PathShrink Get-PathShrinkInventory { throw 'boom' }
+        $rows = @(Get-PathShrinkShortcut -Library (Get-PathShrinkLibrary -Path $od))
+        $rows[0].Error | Should -Be 'boom'
+    }
+    It 'a shortcut that could not be read is reported, and is not "nothing to change"' {
+        Mock -ModuleName PathShrink Get-PathShrinkShortcut { New-Object psobject -Property @{ Path = $sc; Items = 0; OverLocal = 0; LongestLocal = 0; OverServer = 0; LongestServer = 0; Error = 'boom' } }
+        $out = Invoke-PathShrink -Path $od -WhatIf -ReportFolder $rep 6>&1 | Out-String
+        $out | Should -Match 'could not be read \(boom\)'
+        $out | Should -Not -Match 'Nothing to change'
+    }
+    It 'warns that renames in a shared library are seen by everyone' {
+        $out = Invoke-PathShrink -Path $sc -LocalLimit 259 -WhatIf -ReportFolder $rep 6>&1 | Out-String
+        $out | Should -Match 'This folder is shared'
+    }
+    It 'warns for a shortcut to a folder in the OneDrive of someone else' {
+        Mock -ModuleName PathShrink Get-PathShrinkSyncMount {
+            New-Object psobject -Property @{ LocalPath = $od; Url = 'x'; Prefix = 'personal/ana_contoso_com/Documents/'; Type = 'mysite' }
+            New-Object psobject -Property @{ LocalPath = $sc; Url = 'y'; Prefix = 'personal/luis_contoso_com/Documents/'; Type = 'mysite' }
+        }
+        $out = Invoke-PathShrink -Path $sc -LocalLimit 259 -WhatIf -ReportFolder $rep 6>&1 | Out-String
+        $out | Should -Match 'This folder is shared'
+    }
+    It 'does not warn in the OneDrive of the user' {
+        $out = Invoke-PathShrink -Path $od -Limit 60 -Margin 0 -WhatIf -ReportFolder $rep 6>&1 | Out-String
+        $out | Should -Not -Match 'This folder is shared'
+    }
+    It 'says nothing to change when the shortcut is fine too' {
+        Mock -ModuleName PathShrink Get-PathShrinkShortcut { New-Object psobject -Property @{ Path = $sc; Items = 1; OverLocal = 0; LongestLocal = 90; OverServer = 0; LongestServer = 60; Error = $null } }
+        $out = Invoke-PathShrink -Path $od -WhatIf -ReportFolder $rep 6>&1 | Out-String
+        $out | Should -Match 'Nothing to change'
+        $out | Should -Not -Match 'To plan for it'
+    }
+}
+
 Describe 'Name collisions' {
     BeforeAll { $root = New-TestRoot }
     AfterAll { Remove-TestRoot $root }
