@@ -26,6 +26,8 @@ checks the result on disk and keeps an undo file.
 
 - **Server-side length, not local length.** Reads the library URL from the OneDrive client
   (personal OneDrive, synced SharePoint libraries and their prefixes) and counts what Microsoft counts.
+  The command line also reports the paths over 259 characters on the PC, which include the local folder
+  and the name of the shortcut; `-LocalLimit 259` plans for those.
 - **Lossless first.** Step 1 removes double spaces and spaces around `-` `_` `,`. Step 2 joins words
   (`Tax Returns` becomes `TaxReturns`). It stops as soon as a path fits.
 - **Letters only if you say so.** Optional trimming cuts letters from the end of the longest folder

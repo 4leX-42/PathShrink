@@ -143,6 +143,47 @@ Describe 'Planning' {
     }
 }
 
+Describe 'Local path length' {
+    BeforeAll {
+        $root = New-TestRoot
+        New-TestTree $root (Get-DeepFiles)
+        $lib = Get-PathShrinkLibrary -Root $root -Upn $TestUpn
+        $inv = Get-PathShrinkInventory -Library $lib
+        $lens = @($inv.Items | ForEach-Object { $root.Length + 1 + $_.Rel.Length })
+    }
+    AfterAll { Remove-TestRoot $root }
+
+    It 'counts the local folder, unlike the server length' {
+        $m = Get-PathShrinkLocalLength -Inventory $inv -LocalLimit 259
+        $m.OverLimit | Should -Be @($lens | Where-Object { $_ -gt 259 }).Count
+        $m.Longest | Should -Be ($lens | Measure-Object -Maximum).Maximum
+        $m.Offset | Should -Be ($root.Length + 1 - $lib.Prefix.Length)
+    }
+    It 'gives the server limit that matches the local limit' {
+        $m = Get-PathShrinkLocalLength -Inventory $inv -LocalLimit 259
+        foreach ($it in $inv.Items) {
+            (($lib.Prefix.Length + $it.Rel.Length) -le $m.ServerLimit) | Should -Be (($root.Length + 1 + $it.Rel.Length) -le 259)
+        }
+    }
+    It '-LocalLimit plans with the matching server limit and no margin' {
+        $m = Get-PathShrinkLocalLength -Inventory $inv -LocalLimit 259
+        $plan = Invoke-PathShrink -Root $root -Upn $TestUpn -LocalLimit 259 -WhatIf -PassThru -ReportFolder (Join-Path $root 'r')
+        $plan.Limit | Should -Be $m.ServerLimit
+        $plan.Target | Should -Be $m.ServerLimit
+        $plan.Paths.Count | Should -BeGreaterThan 0
+    }
+    It '-LocalLimit never raises -Limit and keeps a -Margin that was given' {
+        $plan = Invoke-PathShrink -Root $root -Upn $TestUpn -Limit 200 -Margin 5 -LocalLimit 390 -WhatIf -PassThru -ReportFolder (Join-Path $root 'r')
+        $plan.Limit | Should -Be 200
+        $plan.Target | Should -Be 195
+    }
+    It 'without -LocalLimit the plan does not change' {
+        $plan = Invoke-PathShrink -Root $root -Upn $TestUpn -Limit 300 -WhatIf -PassThru -ReportFolder (Join-Path $root 'r')
+        $plan.Limit | Should -Be 300
+        $plan.Target | Should -Be 280
+    }
+}
+
 Describe 'Name collisions' {
     BeforeAll { $root = New-TestRoot }
     AfterAll { Remove-TestRoot $root }
