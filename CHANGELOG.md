@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-11-06
+
+### Added
+- **Paths too long on this PC.** The limit measures the server path, which does not count the local
+  OneDrive folder or the name of the shortcut, so a path could fit and still fail in Windows. The
+  command line now reports how many paths are over 259 characters on this PC and the longest one.
+  New `Get-PathShrinkLocalLength`.
+- `Invoke-PathShrink -LocalLimit 259` plans for those paths, using the matching server limit with no
+  margin unless `-Margin` is given. Without it, the plan is the same as before.
+
 ## [1.2.0] - 2026-11-05
 
 ### Added

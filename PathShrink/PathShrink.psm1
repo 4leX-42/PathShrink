@@ -200,6 +200,42 @@ function Test-PathShrinkExcluded([string]$Rel, [string]$Name, [string[]]$Pattern
     $false
 }
 
+function Get-PathShrinkLocalLength {
+    <#
+    .SYNOPSIS
+        Measures the paths as Windows sees them on this PC, and the server limit that matches a local limit.
+    .DESCRIPTION
+        The plan works with server lengths: prefix + path inside the library. Windows and most
+        programs fail on the full local path, which also counts the local OneDrive folder and the
+        name of the shortcut, so a path can fit the server limit and still fail on this PC.
+    .PARAMETER Inventory
+        Output of Get-PathShrinkInventory.
+    .PARAMETER LocalLimit
+        Longest local path that should work. 259 is the classic Windows limit.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][psobject]$Inventory,
+        [ValidateRange(50, 400)][int]$LocalLimit = 259
+    )
+    $lib = $Inventory.Library
+    $baseLen = $lib.Base.Length + 1
+    $over = 0; $longest = 0
+    foreach ($it in $Inventory.Items) {
+        $len = $baseLen + $it.Rel.Length
+        if ($len -gt $LocalLimit) { $over++ }
+        if ($len -gt $longest) { $longest = $len }
+    }
+    $offset = $baseLen - $lib.Prefix.Length
+    New-Object psobject -Property ([ordered]@{
+        LocalLimit  = $LocalLimit
+        OverLimit   = $over
+        Longest     = $longest
+        Offset      = $offset
+        ServerLimit = $LocalLimit - $offset
+    })
+}
+
 function Get-PathShrinkInventory {
     <#
     .SYNOPSIS
@@ -1370,6 +1406,9 @@ function Invoke-PathShrink {
         (-WhatIf shows the plan and changes nothing; -Confirm:$false applies without asking).
         Writes reports and undo.csv under %LOCALAPPDATA%\PathShrink\Reports.
         Run it as the user who owns the OneDrive, without elevation.
+        -Limit and -Margin are server lengths. Also reports the paths that are too long on this PC;
+        -LocalLimit plans for those instead, using the matching server limit with no margin unless
+        -Margin is given.
     .EXAMPLE
         Invoke-PathShrink -WhatIf
         Scans the OneDrive of the current user and shows what would change.
@@ -1377,6 +1416,9 @@ function Invoke-PathShrink {
         Invoke-PathShrink -Path "$env:OneDriveCommercial\Clients" -AllowTrim
     .EXAMPLE
         Invoke-PathShrink -Root D:\Export\Legal -Prefix "sites/Legal/Shared Documents/" -WhatIf
+    .EXAMPLE
+        Invoke-PathShrink -Path "$env:OneDriveCommercial\Clients" -LocalLimit 259 -WhatIf
+        Plans for the paths that fail on this PC, not only those over the server limit.
     .EXAMPLE
         Undo-PathShrink -UndoFile "$env:LOCALAPPDATA\PathShrink\Reports\20261024-101500-000\undo.csv"
     #>
@@ -1392,6 +1434,7 @@ function Invoke-PathShrink {
         [ValidateRange(3, 200)][int]$MinNameLength = 20,
         [string[]]$Exclude = @(),
         [string[]]$Protect = @(),
+        [ValidateRange(0, 400)][int]$LocalLimit = 0,
         [string]$ReportFolder,
         [switch]$PassThru
     )
@@ -1400,6 +1443,12 @@ function Invoke-PathShrink {
     $lib = Get-PathShrinkLibrary @libArgs
     Write-Host ('Scanning {0} ...' -f $lib.Path) -ForegroundColor Cyan
     $inv = Get-PathShrinkInventory -Library $lib -Exclude $Exclude
+    $local = Get-PathShrinkLocalLength -Inventory $inv -LocalLimit $(if ($LocalLimit) { $LocalLimit } else { 259 })
+    if ($LocalLimit) {
+        if ($local.ServerLimit -lt 50) { throw ('A local limit of {0} leaves only {1} characters on the server: the local folder is too long.' -f $LocalLimit, $local.ServerLimit) }
+        $Limit = [Math]::Min($Limit, $local.ServerLimit)
+        if (-not $PSBoundParameters.ContainsKey('Margin')) { $Margin = 0 }
+    }
     $plan = New-PathShrinkPlan -Inventory $inv -Limit $Limit -Margin $Margin -AllowTrim:$AllowTrim -MinNameLength $MinNameLength -Protect $Protect
     $s = Get-PathShrinkSummary -Plan $plan
     $folder = Export-PathShrinkReport -Plan $plan -Folder $ReportFolder -SyncIssues @(Find-PathShrinkSyncIssue -Inventory $inv)
@@ -1410,6 +1459,8 @@ function Invoke-PathShrink {
     Write-Host ('Items         : {0} read, {1} unreadable' -f $s.Items, $s.Unreadable)
     Write-Host ('Long paths    : {0} above {1} ({2} above the {3} limit)' -f $s.LongPaths, $plan.Target, $s.OverLimit, $Limit)
     Write-Host ('Plan          : {0} renames ({1} folders, {2} files) fix {3}; {4} without margin; {5} still too long' -f $s.Renames, $s.Folders, $s.Files, $s.Fixed, $s.NoMargin, $s.TooLong)
+    Write-Host ('On this PC    : {0} above {1} (longest {2}). The local path is {3} characters longer than the server path.' -f $local.OverLimit, $local.LocalLimit, $local.Longest, $local.Offset)
+    if ($local.OverLimit -and -not $LocalLimit) { Write-Host ('                To plan for them, use -LocalLimit {0} (the same as -Limit {1} -Margin 0).' -f $local.LocalLimit, $local.ServerLimit) -ForegroundColor Yellow }
     Write-Host ('Reports       : {0}' -f $folder)
     if ($plan.Renames.Count) {
         $plan.Renames | Sort-Object Rel | Select-Object -First 25 | Format-Table @{ n = 'Saved'; e = { $_.Saved } }, @{ n = 'Items'; e = { $_.Affects } }, Method, OriginalName, NewName,
@@ -1469,6 +1520,6 @@ function Start-PathShrink {
     } while ($next)
 }
 
-Export-ModuleMember -Function Get-PathShrinkLibrary, Get-PathShrinkAccount, Get-PathShrinkSyncMount, Get-PathShrinkInventory,
+Export-ModuleMember -Function Get-PathShrinkLibrary, Get-PathShrinkAccount, Get-PathShrinkSyncMount, Get-PathShrinkInventory, Get-PathShrinkLocalLength,
     New-PathShrinkPlan, Update-PathShrinkPlan, Test-PathShrinkRename, Set-PathShrinkRename, Get-PathShrinkSummary, Invoke-PathShrinkPlan, Undo-PathShrink, Test-PathShrinkUndo, Get-PathShrinkHistory,
     Find-PathShrinkSyncIssue, Export-PathShrinkReport, Get-PathShrinkEnvironment, Get-PathShrinkLock, Stop-PathShrinkLock, Find-PathShrinkDuplicate, Move-PathShrinkDuplicate, Invoke-PathShrink, Start-PathShrink
