@@ -21,8 +21,7 @@ jobs:
           if ("v$v" -ne $env:GITHUB_REF_NAME) { throw "Tag $env:GITHUB_REF_NAME does not match module version $v" }
       - name: Test
         run: |
-          Set-PSRepository PSGallery -InstallationPolicy Trusted
-          Install-Module Pester -MinimumVersion 5.5.0 -Scope CurrentUser -Force -SkipPublisherCheck
+          ./tools/Install-TestModule.ps1
           Invoke-Pester ./tests/PathShrink.Tests.ps1 -CI
       - name: Build
         run: ./tools/Build-Release.ps1
