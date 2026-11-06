@@ -1,6 +1,6 @@
 ﻿@{
     RootModule           = 'PathShrink.psm1'
-    ModuleVersion        = '1.3.0'
+    ModuleVersion        = '1.3.1'
     GUID                 = 'c4344eca-54bf-4248-9977-c8ad06c8ff01'
     Author               = '4leX-42'
     CompanyName          = 'Community'
@@ -10,7 +10,7 @@
     CompatiblePSEditions = @('Desktop', 'Core')
     FunctionsToExport    = @(
         'Start-PathShrink', 'Invoke-PathShrink',
-        'Get-PathShrinkLibrary', 'Get-PathShrinkAccount', 'Get-PathShrinkSyncMount', 'Get-PathShrinkInventory', 'Get-PathShrinkLocalLength',
+        'Get-PathShrinkLibrary', 'Get-PathShrinkAccount', 'Get-PathShrinkSyncMount', 'Get-PathShrinkInventory', 'Get-PathShrinkLocalLength', 'Get-PathShrinkShortcut',
         'New-PathShrinkPlan', 'Update-PathShrinkPlan', 'Test-PathShrinkRename', 'Set-PathShrinkRename', 'Get-PathShrinkSummary', 'Invoke-PathShrinkPlan', 'Undo-PathShrink', 'Test-PathShrinkUndo', 'Get-PathShrinkHistory',
         'Find-PathShrinkSyncIssue', 'Export-PathShrinkReport', 'Get-PathShrinkEnvironment', 'Get-PathShrinkLock', 'Stop-PathShrinkLock', 'Find-PathShrinkDuplicate', 'Move-PathShrinkDuplicate'
     )

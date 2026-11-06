@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here. Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.3.1] - 2026-11-06
+
+### Fixed
+- **Shortcuts with long paths went unnoticed.** A scan skips the shortcuts to other libraries inside
+  the folder, so a plain run could say "Nothing to change" while OneDrive and Windows failed on them.
+  The command line now measures each shortcut, read only, and prints its counts and the command to
+  plan for it. New `Get-PathShrinkShortcut`. It never renames inside a shortcut unless you point
+  `-Path` at it.
+- "Nothing to change" no longer appears when there are paths too long on this PC.
+
+### Added
+- The command line warns before renaming in a shared library or in a shortcut to the OneDrive of
+  someone else: everyone with access sees the new names.
+
 ## [1.3.0] - 2026-11-06
 
 ### Added
