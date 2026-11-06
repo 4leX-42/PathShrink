@@ -195,13 +195,12 @@ Describe 'Shortcuts to other libraries' {
         Mock -ModuleName PathShrink Get-PathShrinkAccount { New-Object psobject -Property @{ LocalPath = $od; Email = 'ana@contoso.com'; Name = 'Business1'; TenantName = '' } }
         Mock -ModuleName PathShrink Get-PathShrinkSyncMount {
             New-Object psobject -Property @{ LocalPath = $od; Url = 'x'; Prefix = 'personal/ana_contoso_com/Documents/'; Type = 'mysite' }
-            New-Object psobject -Property @{ LocalPath = $sc; Url = 'y'; Prefix = 'sites/Legal/Files/'; Type = 'teamsite' }
-            New-Object psobject -Property @{ LocalPath = (Join-Path $od 'Gone'); Url = 'z'; Prefix = 'sites/Gone/Files/'; Type = 'teamsite' }
+            New-Object psobject -Property @{ LocalPath = $sc; Url = 'y'; Prefix = 'sites/Legal/Files/'; Type = 'teamsite'; IsFolder = $true; TargetKnown = $true }
         }
     }
     AfterAll { Remove-TestRoot $root }
 
-    It 'measures the shortcut that the scan leaves out, and ignores one no longer on disk' {
+    It 'measures the shortcut that the scan leaves out' {
         $rows = @(Get-PathShrinkShortcut -Library (Get-PathShrinkLibrary -Path $od))
         $rows.Count | Should -Be 1
         $rows[0].Path | Should -Be $sc
@@ -231,7 +230,7 @@ Describe 'Shortcuts to other libraries' {
         $rows[0].Error | Should -Be 'boom'
     }
     It 'a shortcut that could not be read is reported, and is not "nothing to change"' {
-        Mock -ModuleName PathShrink Get-PathShrinkShortcut { New-Object psobject -Property @{ Path = $sc; Items = 0; OverLocal = 0; LongestLocal = 0; OverServer = 0; LongestServer = 0; Error = 'boom' } }
+        Mock -ModuleName PathShrink Get-PathShrinkShortcut { New-Object psobject -Property @{ Path = $sc; Items = 0; OverLocal = 0; LongestLocal = 0; OverServer = 0; LongestServer = 0; OverLocalShortName = 0; OverServerPaths = @(); TargetUnknown = $false; Error = 'boom' } }
         $out = Invoke-PathShrink -Path $od -WhatIf -ReportFolder $rep 6>&1 | Out-String -Width 4096
         $out | Should -Match 'could not be read \(boom\)'
         $out | Should -Not -Match 'Nothing to change'
@@ -243,7 +242,7 @@ Describe 'Shortcuts to other libraries' {
     It 'warns for a shortcut to a folder in the OneDrive of someone else' {
         Mock -ModuleName PathShrink Get-PathShrinkSyncMount {
             New-Object psobject -Property @{ LocalPath = $od; Url = 'x'; Prefix = 'personal/ana_contoso_com/Documents/'; Type = 'mysite' }
-            New-Object psobject -Property @{ LocalPath = $sc; Url = 'y'; Prefix = 'personal/luis_contoso_com/Documents/'; Type = 'mysite' }
+            New-Object psobject -Property @{ LocalPath = $sc; Url = 'y'; Prefix = 'personal/luis_contoso_com/Documents/Compartido/'; Type = 'teamsite'; IsFolder = $true; TargetKnown = $true }
         }
         $out = Invoke-PathShrink -Path $sc -LocalLimit 259 -WhatIf -ReportFolder $rep 6>&1 | Out-String -Width 4096
         $out | Should -Match 'This folder is shared'
@@ -252,8 +251,74 @@ Describe 'Shortcuts to other libraries' {
         $out = Invoke-PathShrink -Path $od -Limit 60 -Margin 0 -WhatIf -ReportFolder $rep 6>&1 | Out-String -Width 4096
         $out | Should -Not -Match 'This folder is shared'
     }
+    It 'a shortcut is a shortcut: not personal, renames allowed from its top, and its target counted' {
+        $lib = Get-PathShrinkLibrary -Path $sc
+        $lib.Kind | Should -Be 'Shortcut'
+        $lib.IsPersonal | Should -BeFalse
+        $lib.MinRenameDepth | Should -Be 0
+        $lib.Prefix | Should -Be 'sites/Legal/Files/'
+    }
+    It 'lists what only exists on this PC and what a short shortcut name would leave' {
+        $row = @(Get-PathShrinkShortcut -Library (Get-PathShrinkLibrary -Path $od) -Limit 100 -LocalLimit 259)[0]
+        $row.OverServer | Should -BeGreaterThan 0
+        @($row.OverServerPaths).Count | Should -BeLessOrEqual 3
+        @($row.OverServerPaths)[0] | Should -BeLike "$sc\*"
+        $row.OverLocalShortName | Should -BeLessOrEqual $row.OverLocal
+    }
+    It 'says when the folder a shortcut points to could not be read' {
+        Mock -ModuleName PathShrink Get-PathShrinkSyncMount {
+            New-Object psobject -Property @{ LocalPath = $od; Url = 'x'; Prefix = 'personal/ana_contoso_com/Documents/'; Type = 'mysite' }
+            New-Object psobject -Property @{ LocalPath = $sc; Url = 'y'; Prefix = 'sites/Legal/Files/'; Type = 'teamsite'; IsFolder = $true; TargetKnown = $false }
+        }
+        $out = Invoke-PathShrink -Path $sc -WhatIf -ReportFolder $rep 6>&1 | Out-String -Width 4096
+        $out | Should -Match 'could not be read: the server lengths may be short'
+    }
+    It 'a renamed shortcut the registry has not caught up with: warns and renames nothing' {
+        Mock -ModuleName PathShrink Get-PathShrinkSyncMount {
+            New-Object psobject -Property @{ LocalPath = $od; Url = 'x'; Prefix = 'personal/ana_contoso_com/Documents/'; Type = 'mysite' }
+            New-Object psobject -Property @{ LocalPath = (Join-Path $od 'Old name'); Url = 'y'; Prefix = 'sites/Legal/Files/'; Type = 'teamsite'; IsFolder = $true; TargetKnown = $true }
+        }
+        # A shortcut on disk is a read-only reparse point; a junction has the same attributes.
+        $target = Join-Path $root 'target'; $link = Join-Path $od 'New'
+        [void][IO.Directory]::CreateDirectory($target)
+        [void](New-Item -ItemType Junction -Path $link -Target $target)
+        (Get-Item -LiteralPath $link -Force).Attributes = 'ReadOnly, Directory, ReparsePoint'
+        try {
+            (Get-PathShrinkLibrary -Path $od).StaleMounts | Should -Be @($link)
+            $before = @(Get-TestRels $od)
+            $out = Invoke-PathShrink -Path $od -Limit 60 -Margin 0 -Confirm:$false -ReportFolder $rep 6>&1 | Out-String -Width 4096
+            $out | Should -Match 'Restart OneDrive and run this again'
+            $out | Should -Not -Match 'Nothing to change'
+            @(Get-TestRels $od) | Should -Be $before
+        } finally {
+            (Get-Item -LiteralPath $link -Force).Attributes = 'Directory, ReparsePoint'
+            [IO.Directory]::Delete($link)
+        }
+    }
+    It 'a shortcut unticked in Choose folders stays in the registry and is not taken for a renamed one' {
+        Mock -ModuleName PathShrink Get-PathShrinkSyncMount {
+            New-Object psobject -Property @{ LocalPath = $od; Url = 'x'; Prefix = 'personal/ana_contoso_com/Documents/'; Type = 'mysite' }
+            New-Object psobject -Property @{ LocalPath = (Join-Path $od 'Unticked'); Url = 'y'; Prefix = 'sites/Legal/Files/'; Type = 'teamsite'; IsFolder = $true; TargetKnown = $true }
+        }
+        @((Get-PathShrinkLibrary -Path $od).StaleMounts).Count | Should -Be 0
+        @(Get-PathShrinkShortcut -Library (Get-PathShrinkLibrary -Path $od)).Count | Should -Be 0
+    }
+    It 'reads the folder a shortcut points to from the OneDrive settings' {
+        $app = Join-Path $root 'appdata'
+        $set = Join-Path $app 'Microsoft\OneDrive\settings\Business1'
+        [void][IO.Directory]::CreateDirectory($set)
+        $line = 'AddedScope = 1 83021c1599ad4eeea1e9f8592cca3067 3 "https://contoso-my.sharepoint.com/personal/ana" "tenant" ebc9 0660 6a65 e74f "Clientes/Proyecto" '
+        [IO.File]::WriteAllText((Join-Path $set '060c7ec5-0833-48ee-917e-66468ee4f53d.ini'), "library = 1`r`n$line`r`n", [Text.Encoding]::Unicode)
+        [IO.File]::WriteAllText((Join-Path $set 'ClientPolicy.ini'), 'x', [Text.Encoding]::Unicode)
+        $old = $env:LOCALAPPDATA
+        try {
+            $env:LOCALAPPDATA = $app
+            $map = InModuleScope PathShrink { Get-OneDriveAddedScope }
+            $map['83021c1599ad4eeea1e9f8592cca3067'] | Should -Be 'Clientes/Proyecto'
+        } finally { $env:LOCALAPPDATA = $old }
+    }
     It 'says nothing to change when the shortcut is fine too' {
-        Mock -ModuleName PathShrink Get-PathShrinkShortcut { New-Object psobject -Property @{ Path = $sc; Items = 1; OverLocal = 0; LongestLocal = 90; OverServer = 0; LongestServer = 60; Error = $null } }
+        Mock -ModuleName PathShrink Get-PathShrinkShortcut { New-Object psobject -Property @{ Path = $sc; Items = 1; OverLocal = 0; LongestLocal = 90; OverServer = 0; LongestServer = 60; OverLocalShortName = 0; OverServerPaths = @(); TargetUnknown = $false; Error = $null } }
         $out = Invoke-PathShrink -Path $od -WhatIf -ReportFolder $rep 6>&1 | Out-String -Width 4096
         $out | Should -Match 'Nothing to change'
         $out | Should -Not -Match 'To plan for it'

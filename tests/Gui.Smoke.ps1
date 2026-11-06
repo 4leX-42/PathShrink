@@ -246,7 +246,9 @@ try {
     Check (((Get-Tree) -join '|') -eq ($original -join '|')) 'folder is back to its original state after the copies'
     $dupDir = Join-Path $env:LOCALAPPDATA 'PathShrink\Duplicates'
     foreach ($x in @(Get-ChildItem -LiteralPath $dupDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt $t0 })) {
-        if (@(Get-ChildItem -LiteralPath $x.FullName -Recurse -File | Where-Object { $_.FullName -like '*PathShrinkTest-gui*' -or $_.Name -eq 'duplicates.csv' }).Count -eq @(Get-ChildItem -LiteralPath $x.FullName -Recurse -File).Count) { [IO.Directory]::Delete('\\?\' + $x.FullName, $true) }
+        # Long path API: on Windows PowerShell 5.1, Get-ChildItem stops at the long folders in here.
+        $files = @([IO.Directory]::GetFiles('\\?\' + $x.FullName, '*', 'AllDirectories'))
+        if (@($files | Where-Object { $_ -like '*PathShrinkTest-gui*' -or $_ -like '*\duplicates.csv' }).Count -eq $files.Count) { [IO.Directory]::Delete('\\?\' + $x.FullName, $true) }
     }
 } finally {
     if ($holder -and -not $holder.HasExited) { $holder.Kill() }
