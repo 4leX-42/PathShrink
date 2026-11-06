@@ -22,10 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install test modules
-        run: |
-          Set-PSRepository PSGallery -InstallationPolicy Trusted
-          Install-Module Pester -MinimumVersion 5.5.0 -Scope CurrentUser -Force -SkipPublisherCheck
-          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+        run: ./tools/Install-TestModule.ps1 -Analyzer
       - name: Static checks
         run: ./tools/Test-Static.ps1
       - name: Pester
