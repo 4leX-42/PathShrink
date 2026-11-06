@@ -2,10 +2,11 @@
 
 <#
 .SYNOPSIS
-    Builds out\PathShrink.zip and its .sha256 from the working tree, for a GitHub release.
+    Builds out\PathShrink.zip, out\PathShrink-script.zip and their .sha256 from the working tree, for a GitHub release.
 .DESCRIPTION
     The zip holds PathShrink.exe, a small launcher compiled here from tools\Launcher.cs with the
     C# compiler of .NET Framework 4 (in every Windows 10 and 11), next to the scripts it opens.
+    PathShrink-script.zip is the same without the exe, for computers where an antivirus or EDR stops it.
 #>
 [CmdletBinding()]
 param([string]$OutDir)
@@ -46,6 +47,19 @@ if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip
 $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
 Set-Content -LiteralPath "$zip.sha256" -Value ('{0}  PathShrink.zip' -f $hash) -Encoding ASCII
+
+# Same files without the exe: that route must never put it on disk.
+Remove-Item -LiteralPath $exe -Force
+$scriptZip = Join-Path $OutDir 'PathShrink-script.zip'
+if (Test-Path -LiteralPath $scriptZip) { Remove-Item -LiteralPath $scriptZip -Force }
+Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $scriptZip
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$check = [IO.Compression.ZipFile]::OpenRead($scriptZip)
+try { if (@($check.Entries | Where-Object { $_.Name -like '*.exe' }).Count) { throw 'PathShrink-script.zip must not contain an exe' } } finally { $check.Dispose() }
+$scriptHash = (Get-FileHash -LiteralPath $scriptZip -Algorithm SHA256).Hash
+Set-Content -LiteralPath "$scriptZip.sha256" -Value ('{0}  PathShrink-script.zip' -f $scriptHash) -Encoding ASCII
 Remove-Item -LiteralPath $stage -Recurse -Force
 Write-Host ('PathShrink {0}: {1} ({2:N0} KB)' -f $version, $zip, ((Get-Item $zip).Length / 1KB))
 Write-Host ('SHA-256 {0}' -f $hash)
+Write-Host ('PathShrink {0}: {1} ({2:N0} KB)' -f $version, $scriptZip, ((Get-Item $scriptZip).Length / 1KB))
+Write-Host ('SHA-256 {0}' -f $scriptHash)
