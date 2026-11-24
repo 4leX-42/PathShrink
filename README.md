@@ -1,259 +1,116 @@
+<div align="center">
+
 # PathShrink
 
-**Find and fix OneDrive and SharePoint paths over the 400-character limit, without losing a letter.**
+OneDrive and SharePoint paths over 400 characters, fixed with the fewest renames. Lossless first.
 
-[![CI](https://github.com/4leX-42/PathShrink/actions/workflows/ci.yml/badge.svg)](https://github.com/4leX-42/PathShrink/actions/workflows/ci.yml)
-![PowerShell 5.1 | 7](https://img.shields.io/badge/PowerShell-5.1%20%7C%207-2b5b84)
-![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-444)
-[![License: MIT](https://img.shields.io/badge/license-MIT-c9a96e)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/4leX-42/PathShrink/ci.yml?style=flat-square&label=CI)](https://github.com/4leX-42/PathShrink/actions/workflows/ci.yml) ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207-1f1f1f?style=flat-square&logo=powershell&logoColor=white) ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-1f1f1f?style=flat-square) ![EN ES PT](https://img.shields.io/badge/EN_%C2%B7_ES_%C2%B7_PT-1f1f1f?style=flat-square) [![MIT](https://img.shields.io/badge/license-MIT-c9a96e?style=flat-square)](LICENSE)
 
-[Español](README.es.md)
+<img src="docs/images/results.png" width="820" alt="PathShrink: long paths and planned renames">
 
-![PathShrink showing the paths that are too long and the planned renames](docs/images/results.png)
+<sub>[Español](README.es.md) · Part of <a href="https://github.com/4leX-42/GADGETS-SUPPORT_CX">GADGETS-SUPPORT_CX</a></sub>
 
-OneDrive and SharePoint refuse any file whose **decoded web path** is longer than 400 characters.
-That path is not what you see in Explorer: it includes the library address, for example
-`personal/ana_perez_contoso_com/Documents/` (41 characters) in front of every folder and the file
-name. Deep client and project folders hit the limit, the sync client shows *"path too long"*, and
-someone has to rename folders by hand until it fits.
+</div>
 
-PathShrink measures each path the way the service does, works out the **smallest set of folder
-renames** that brings it back under the limit, shows you the plan, and only renames after you
-confirm. It removes spaces before it removes letters, never touches file names unless you allow it,
-checks the result on disk and keeps an undo file.
+## <img src="https://api.iconify.design/lucide/download.svg?color=%238b949e" width="18" align="top"> Install
 
-## Features
-
-- **Server-side length, not local length.** Reads the library URL from the OneDrive client
-  (personal OneDrive, synced SharePoint libraries and their prefixes) and counts what Microsoft counts.
-  The command line also reports the paths over 259 characters on the PC, which include the local folder
-  and the name of the shortcut; `-LocalLimit 259` plans for those. It also measures the shortcuts to
-  other libraries that the scan leaves out, and prints the command to analyse each one.
-- **Lossless first.** Step 1 removes double spaces and spaces around `-` `_` `,`. Step 2 joins words
-  (`Tax Returns` becomes `TaxReturns`). It stops as soon as a path fits.
-- **Letters only if you say so.** Optional trimming cuts letters from the end of the longest folder
-  names, spread across levels, never below a minimum length you choose.
-- **Folders before files.** File names are not renamed unless trimming is on and no folder can give more.
-- **Minimal changes.** A rename is kept only if it fixes a path or brings it back under the hard limit.
-- **Preview, confirm, verify.** Nothing changes until you confirm. After renaming it re-reads the disk
-  to check the result.
-- **Checked revert.** Every successful rename is written to `undo.csv` the moment it happens. A revert
-  first checks each item on disk and restores only those still where PathShrink left them with their
-  old name free; anything moved, renamed again, replaced or deleted since is skipped and listed,
-  never overwritten.
-- **Safe scope.** Never renames above the folder you pick, nor the first level of a personal OneDrive
-  (Desktop, Documents, Pictures). Shortcuts to other libraries, junctions and symbolic links are skipped.
-- **No downloads.** Cloud-only (Files On-Demand) files are listed, not downloaded.
-- **Other sync blockers** (Pro): reserved names (`CON`, `.lock`...), `_vti_`, `~$` lock files,
-  leading or trailing spaces, names over 255 characters.
-- **Reports** in CSV, JSON and HTML.
-- **GUI with Basic and Pro modes** in English, Spanish and Portuguese (EN / ES / PT switch, follows the
-  Windows language by default): before/after comparison, full execution plan, history of applied
-  changes with revert, contextual help, an interactive demonstration on made-up data, and the Windows
-  folder picker. The same engine runs from the command line.
-- Windows PowerShell 5.1 and PowerShell 7. No admin rights, no modules to install, no internet access needed.
-
-## Quick start
-
-Paste one of these in a normal Windows PowerShell, not as administrator: PathShrink works on the
-OneDrive of the user who runs it. Both install for the current user (Start menu shortcut, no admin) and
-open the window.
-
-**Option 1: with `PathShrink.exe`.**
+Normal PowerShell, as the user who owns the OneDrive (not elevated):
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force; [Net.ServicePointManager]::SecurityProtocol=3072; $f="$env:TEMP\install-pathshrink.ps1"; irm https://raw.githubusercontent.com/4leX-42/PathShrink/main/install.ps1 -OutFile $f; powershell -NoProfile -ExecutionPolicy Bypass -File $f
 ```
 
-**Option 2: without the exe.** If an antivirus or EDR stops `PathShrink.exe`. The exe is never
-downloaded: the window opens directly with Windows PowerShell.
+Per user, no admin, SHA-256 checked. Add `-NoExe` if an antivirus or EDR stops `PathShrink.exe`; `-Uninstall` removes it. Portable zips in [Releases](https://github.com/4leX-42/PathShrink/releases/latest).
+
+## <img src="https://api.iconify.design/lucide/folder-tree.svg?color=%238b949e" width="18" align="top"> What it does
+
+| | |
+|---|---|
+| <img src="https://api.iconify.design/lucide/ruler.svg?color=%238b949e" width="18" align="top"> **Server-side length** | Counts the decoded web path, library prefix included, as Microsoft does |
+| <img src="https://api.iconify.design/lucide/sparkles.svg?color=%238b949e" width="18" align="top"> **Lossless first** | Spaces before letters; letters only if you allow trimming |
+| <img src="https://api.iconify.design/lucide/list-checks.svg?color=%238b949e" width="18" align="top"> **Minimal plan** | Folders before files; a rename is kept only if it fixes a path |
+| <img src="https://api.iconify.design/lucide/shield-check.svg?color=%238b949e" width="18" align="top"> **Preview, confirm, verify** | Nothing changes until you confirm; the result is re-read from disk |
+| <img src="https://api.iconify.design/lucide/undo-2.svg?color=%238b949e" width="18" align="top"> **Checked revert** | `undo.csv` per run; restores only what is still where it was left |
+| <img src="https://api.iconify.design/lucide/triangle-alert.svg?color=%238b949e" width="18" align="top"> **Other blockers** | Reserved names, `~$` lock files, `_vti_`, names over 255 (Pro) |
+
+Never deletes, moves or downloads; no registry or system changes; no network. Writes only to `%LOCALAPPDATA%\PathShrink`.
+
+| Execution plan | Applied changes and revert |
+|---|---|
+| ![Plan](docs/images/plan.png) | ![History](docs/images/history.png) |
+
+## <img src="https://api.iconify.design/lucide/terminal.svg?color=%238b949e" width="18" align="top"> Command line
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force; [Net.ServicePointManager]::SecurityProtocol=3072; $f="$env:TEMP\install-pathshrink.ps1"; irm https://raw.githubusercontent.com/4leX-42/PathShrink/main/install.ps1 -OutFile $f; powershell -NoProfile -ExecutionPolicy Bypass -File $f -NoExe
+Import-Module .\PathShrink\PathShrink.psd1
+Invoke-PathShrink -WhatIf                                   # plan only
+Invoke-PathShrink -Path "$env:OneDriveCommercial\Clients"   # plan, confirm, rename, verify
+Invoke-PathShrink -AllowTrim -MinNameLength 25 -Confirm:$false
+Undo-PathShrink -UndoFile "$env:LOCALAPPDATA\PathShrink\Reports\<run>\undo.csv"
 ```
 
-The installer downloads the release zip, checks its SHA-256, unpacks it to
-`%LOCALAPPDATA%\Programs\PathShrink`, adds the Start menu shortcut and opens it. Read it before running
-it: it is short. Remove with `install.ps1 -Uninstall`.
+<details>
+<summary><img src="https://api.iconify.design/lucide/workflow.svg?color=%238b949e" width="18" align="top"> <b>How the plan works</b></summary>
 
-**Option 3: portable.** From [Releases](https://github.com/4leX-42/PathShrink/releases/latest), download
-`PathShrink.zip`, unzip and double-click `PathShrink.exe`, or download `PathShrink-script.zip`, unzip and
-double-click `PathShrink.cmd`. The exe is not signed: if SmartScreen stops it, choose *More info*, *Run
-anyway*.
+For every path longer than *limit minus margin* (380 by default), shallowest first:
 
-**Files open in another program or no permission.** When an item cannot be renamed, PathShrink says
-which program holds it open and offers to close that program and retry only the failed items (it asks
-the program to close first, so it can offer to save). If permission is missing, it offers to open
-again as administrator on the same folder.
+1. **Clean-up**: double spaces, spaces around `-` `_` `,`, trailing spaces and dots.
+2. **Remove spaces**, capitalising each word. Names in CAPITALS go last.
+3. **Trim** (only with *Allow trimming*): one letter at a time from the longest folder name.
+4. **File name** (only with trimming, when no folder can give more), extension kept.
 
-**OneDrive asks "Do you want to delete these items?"** after the renames: choose **Keep**, nothing is
-lost. OneDrive may then download the cloud copies again at the old names. Once it has synced, open
-*Changes applied*, pick the run and use **Copies brought back**: PathShrink compares each copy with the
-file at the new place and takes out only the identical ones (moved out of OneDrive, never deleted
-from this PC). If OneDrive then asks again, *Delete* is right that time: they are copies.
+Stops as soon as the path fits. Collisions get a `~2` suffix.
 
-**Option 4: PowerShell Gallery** *(planned)*:
-
-```powershell
-Install-Module PathShrink -Scope CurrentUser
-Start-PathShrink
+```text
+Before (414): Desktop\CLIENTS - ACTIVE MATTERS\Fabrikam Industrial Components Group\Employment and Labour Disputes - Regional Office\...
+After  (380): Desktop\CLIENTS-ACTIVEMATTERS\FabrikamIndustrialComponentsGroup\EmploymentAndLabourDisputes-RegionalOffice\...
 ```
+</details>
 
-Run it **as the user who owns the OneDrive**, not elevated as another account: the OneDrive folders
-and accounts are read from the current user's profile.
-
-## Using the window
-
-![Before and after comparison of each long path](docs/images/results.png)
-
-The window follows five steps and says at each one whether anything on disk can change:
-**Folder** (choose), **Analyse** (read only), **Review** (simulation), **Apply** (renames) and
-**Result** (checked on disk).
-
-- **Folder.** The OneDrive folder is detected. *Browse...* opens the Windows folder picker (address bar,
-  search, paste a path); you can also paste a path in the box and press Enter, or drop a folder on the window.
-- **Analysis.** Totals, a plain-language explanation, and a **before and after** card for the ten most
-  relevant paths (problems first, then the biggest changes): both full paths with the changed names
-  highlighted, length bars against the limit and the target, and the reason for each change. Filter,
-  search and page through the rest; *Export full report* writes all of them to HTML, CSV and JSON.
-- **Execution plan.** *View plan* lists every rename: current and new name, location, which long paths
-  need it and how much they shrink, and what else it affects. *Back* and *Summary* return without losing
-  anything.
-- **Apply.** A confirmation sums up what will change, what will not, and how to revert.
-- **Applied changes.** Every run that renamed something, from this computer. Pick one: each item is
-  checked on disk, and you see how many can be restored, how many already have their old name and which
-  ones changed since (they are left alone). *Revert* restores the safe ones.
-- **Help** (`?` in the title bar, `F1`, or the small `?` next to each option) explains every term
-  precisely, for example that *shorten names* removes letters from folder names and nothing else.
-- **See how it works** runs the real planner on made-up paths in memory, with an animated before and
-  after. It never reads or writes your files.
-
-![Execution plan](docs/images/plan.png)
-
-**Pro** adds the rules panel and per-rename control:
+<details>
+<summary><img src="https://api.iconify.design/lucide/sliders-horizontal.svg?color=%238b949e" width="18" align="top"> <b>Pro settings</b></summary>
 
 | Setting | What it does | Default |
 |---|---|---|
 | Limit | Server limit in characters | 400 |
-| Safety margin | Also fix paths this close to the limit, so the next longer file name does not fail again | 20 |
-| Shorten names | Remove letters from the end of the longest folder names (marked *removes letters*) | off |
+| Safety margin | Also fix paths this close to the limit | 20 |
+| Shorten names | Remove letters from the end of the longest folder names | off |
 | Shortest name | Never shorten a name below this length | 20 |
 | Exclude | Wildcards for folders not to scan or rename | none |
-| Never rename | Wildcards for names that are counted but never renamed | none |
-| Server prefix (Advanced) | Library path to use when it cannot be detected (copied folders, other machines) | detected |
+| Never rename | Wildcards for names counted but never renamed | none |
+| Server prefix | Library path when it cannot be detected | detected |
 
-Plus a check box per rename in the plan (the totals update live), *Other sync issues*, the *Log*,
-*Check this computer*, *Copy as command* to repeat the same run in a script, and *Open another
-undo.csv* to revert a run recorded elsewhere.
+Plus a check box per rename, *Other sync issues*, *Log*, *Check this computer*, *Copy as command* and *Open another undo.csv*.
+</details>
 
-| Applied changes and revert | Demonstration |
-|---|---|
-| ![Applied changes](docs/images/history.png) | ![Demonstration](docs/images/demo.png) |
+<details>
+<summary><img src="https://api.iconify.design/lucide/info.svg?color=%238b949e" width="18" align="top"> <b>Requirements and limitations</b></summary>
 
-## Command line
+- Windows 10 or 11, Windows PowerShell 5.1 or PowerShell 7. The window needs WPF and *FullLanguage* mode.
+- OneDrive for work or school, or a synced SharePoint library; any other folder with `-Root` and `-Prefix`.
+- The exe is not signed: some EDRs stop it (use `-NoExe`). Its source is `tools/Launcher.cs`.
+- Constrained Language Mode blocks the window; AllSigned policy blocks unsigned scripts.
+- Renames break shortcuts, Quick access pins and copied links into renamed folders until reverted.
+- If OneDrive asks *"Delete these items?"* after renaming: choose **Keep**.
+</details>
 
-```powershell
-Import-Module .\PathShrink\PathShrink.psd1
-
-Invoke-PathShrink -WhatIf                                   # plan only, current user's OneDrive
-Invoke-PathShrink -Path "$env:OneDriveCommercial\Clients"   # plan, confirm, rename, verify
-Invoke-PathShrink -AllowTrim -MinNameLength 25 -Confirm:$false
-Invoke-PathShrink -Root D:\Export\Legal -Prefix 'sites/Legal/Shared Documents/' -WhatIf
-Get-PathShrinkHistory                                       # runs that renamed something
-Test-PathShrinkUndo -UndoFile "$env:LOCALAPPDATA\PathShrink\Reports\<run>\undo.csv"   # what can be reverted
-Undo-PathShrink -UndoFile "$env:LOCALAPPDATA\PathShrink\Reports\<run>\undo.csv"       # revert the safe ones
-```
-
-`.\PathShrink.ps1` with any of these parameters runs the command line; without parameters it opens
-the window. The building blocks are exported too: `Get-PathShrinkLibrary`,
-`Get-PathShrinkInventory`, `New-PathShrinkPlan`, `Invoke-PathShrinkPlan`, `Find-PathShrinkSyncIssue`,
-`Export-PathShrinkReport`, `Test-PathShrinkUndo`, `Get-PathShrinkHistory`. `Get-Help <command> -Full`
-documents each one.
-
-## How the plan works
-
-For every path longer than *limit minus margin* (380 by default), shallowest first:
-
-1. **Clean-up** of folder names: double spaces, spaces around `-` `_` `,`, trailing spaces and dots.
-2. **Remove spaces** from folder names, capitalising each word. Names in CAPITALS go last because
-   they are hard to read without spaces.
-3. **Trim** (only with *Allow trimming*): one letter at a time from the end of the longest folder name.
-4. **File name** (only with *Allow trimming* and when no folder can give more), keeping the extension.
-
-It stops as soon as the path fits. A shared parent folder renamed for one path also shortens every
-path below it, which is why the shallowest paths are planned first. Name collisions get a `~2`
-suffix.
-
-Real output on the demo folder (`tools\New-DemoFolder.ps1`), personal OneDrive of
-`ana.perez@contoso.com`, prefix `personal/ana_perez_contoso_com/Documents/` (41 characters):
-
-```text
-Before (414): Desktop\CLIENTS - ACTIVE MATTERS\Fabrikam Industrial Components Group\Employment and Labour Disputes - Regional Office\Financial Statements and Tax Returns\2026 Engagement - Fieldwork Testing and Reporting\Working Papers and Supporting Schedules\Quarterly Reconciliations and Adjustments\Reviewed by Partner - Final Versions\Appendix A - detailed general ledger export.xlsx
-After  (380): Desktop\CLIENTS-ACTIVEMATTERS\FabrikamIndustrialComponentsGroup\EmploymentAndLabourDisputes-RegionalOffice\FinancialStatementsAndTaxReturns\2026Engagement-FieldworkTestingAndReporting\WorkingPapersAndSupportingSchedules\QuarterlyReconciliationsAndAdjustments\ReviewedByPartner-FinalVersions\Appendix A - detailed general ledger export.xlsx
-```
-
-Every letter is still there, and the file name is untouched.
-
-## What it changes, and what it never does
-
-- It **renames folders** (and, only with trimming, files) inside the folder you choose. Nothing else.
-- It **never** changes file contents, dates, permissions or sharing; never deletes, moves or
-  downloads anything; never edits the registry or any system setting; never needs admin rights.
-- It reads `HKCU\Software\Microsoft\OneDrive\Accounts` and `HKCU\Software\SyncEngines\Providers\OneDrive`
-  to find the libraries.
-- It writes only to `%LOCALAPPDATA%\PathShrink` (reports, undo files, logs).
-- It makes no network connection. `install.ps1` downloads the release from GitHub; PathShrink itself does not.
-
-Side effects of any rename, which the confirmation repeats: desktop shortcuts, Quick access pins,
-recent-file lists and copied links that point inside a renamed folder stop working until the rename
-is reverted. Files open in another program cannot be renamed: they are reported, the rest continues.
-
-What a revert can and cannot do: it gives names back, using the record of that run. It cannot restore
-an item that was renamed again, moved or deleted after the run, or whose old name is now used by
-something else; those are skipped and listed so you can decide. Other people see both the renames and
-the revert once OneDrive syncs.
-
-## Requirements
-
-- Windows 10 or 11.
-- Windows PowerShell 5.1 (built in) or PowerShell 7 (tested on 7.6).
-- The window needs .NET WPF (included in Windows) and *FullLanguage* mode.
-- OneDrive for work or school, or a synced SharePoint library. Any other folder works with `-Root` and `-Prefix`.
-
-## Known limitations
-
-- **The exe is not signed.** Some antivirus and EDR products stop it. Use the route without the exe, or
-  ask whoever manages the product to review it. It only opens `PathShrink.ps1`, and its source is
-  `tools/Launcher.cs`.
-- **Constrained Language Mode** (AppLocker or WDAC in some companies) blocks the window. The
-  command line works where the module can load; signed builds are not provided yet.
-- **AllSigned execution policy** set by Group Policy blocks unsigned scripts, including this one.
-- The personal OneDrive prefix is computed from the e-mail only when the OneDrive client has not
-  recorded the library URL; if the account was renamed, pass `-Prefix` with the real URL path.
-- The 400 limit is Microsoft's documented service limit. If Microsoft changes it, set *Limit*.
-- Characters are counted as .NET UTF-16 units: an emoji counts as 2, which errs on the safe side.
-- The OneDrive personal (consumer) client is not detected; use `-Root` and `-Prefix`.
-
-## Troubleshooting
+<details>
+<summary><img src="https://api.iconify.design/lucide/wrench.svg?color=%238b949e" width="18" align="top"> <b>Troubleshooting</b></summary>
 
 | Symptom | Cause and fix |
 |---|---|
-| *No OneDrive for work or school account* | Not signed in to OneDrive in this Windows profile, or running as another user. Sign in, or pick a folder. |
-| *This folder is not inside OneDrive* | The folder is not under a synced library. In Pro mode type the server prefix, or use `-Root` / `-Prefix`. |
-| Some items *could not be renamed* | A file is open (Word, Excel, Outlook attachment preview) or access is denied. Close it and scan again. |
-| The window does not open, nothing happens | Run `.\PathShrink.ps1` from a PowerShell window to see the error. Constrained Language Mode or AllSigned policy are the usual causes. |
-| *path too long* still shown in OneDrive | Give the client a few minutes to sync the renames; then scan again. |
-| OneDrive shows *path too long* and blocks everything | A file only on this PC whose server path is over 400 cannot upload, and while the window is open Choose folders does not apply. PathShrink lists those files, also inside shortcuts: move them out or shorten them and press *Try again*. Do not trust the number of characters it asks for, and do not press *Quit* (closes OneDrive) or *set up OneDrive* (unlinks this PC). |
-| Files downloaded from the zip are blocked | `Get-ChildItem -Recurse \| Unblock-File` in the folder, or use `install.ps1`. |
+| *No OneDrive for work or school account* | Not signed in, or running as another user. Sign in, or pick a folder. |
+| *This folder is not inside OneDrive* | Not under a synced library. Set the server prefix (Pro) or `-Root` / `-Prefix`. |
+| Some items *could not be renamed* | A file is open or access is denied. PathShrink names the program and offers to retry. |
+| The window does not open | Run `.\PathShrink.ps1` from PowerShell to see the error (usually CLM or AllSigned). |
+| *path too long* still shown | Wait for OneDrive to sync, then scan again. |
+| Zip files blocked | `Get-ChildItem -Recurse \| Unblock-File`, or use `install.ps1`. |
 
-*Check this computer* (Pro) or `Get-PathShrinkEnvironment` prints the facts that matter for a bug report.
+`Get-PathShrinkEnvironment` prints what matters for a bug report. [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
+</details>
 
-## Contributing
+<div align="center">
 
-Bug reports with the output of `Get-PathShrinkEnvironment` are the most useful contribution.
-See [CONTRIBUTING.md](CONTRIBUTING.md) for tests and code rules, and [SECURITY.md](SECURITY.md)
-to report a vulnerability privately.
+<sub>[MIT](LICENSE) · Not affiliated with Microsoft</sub>
 
-## License
-
-[MIT](LICENSE). Not affiliated with Microsoft. OneDrive and SharePoint are trademarks of Microsoft.
+</div>
