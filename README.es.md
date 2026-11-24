@@ -1,88 +1,58 @@
+<div align="center">
+
 # PathShrink
 
-**Encuentra y arregla las rutas de OneDrive y SharePoint que pasan del límite de 400 caracteres, sin perder ninguna letra.**
+Rutas de OneDrive y SharePoint de más de 400 caracteres, resueltas con el mínimo de renombrados. Primero sin perder letras.
 
-[English](README.md)
+[![CI](https://img.shields.io/github/actions/workflow/status/4leX-42/PathShrink/ci.yml?style=flat-square&label=CI)](https://github.com/4leX-42/PathShrink/actions/workflows/ci.yml) ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207-1f1f1f?style=flat-square&logo=powershell&logoColor=white) ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-1f1f1f?style=flat-square) ![EN ES PT](https://img.shields.io/badge/EN_%C2%B7_ES_%C2%B7_PT-1f1f1f?style=flat-square) [![MIT](https://img.shields.io/badge/license-MIT-c9a96e?style=flat-square)](LICENSE)
 
-![PathShrink mostrando las rutas demasiado largas y los cambios previstos](docs/images/results.es.png)
+<img src="docs/images/results.es.png" width="820" alt="PathShrink: rutas largas y cambios previstos">
 
-OneDrive y SharePoint rechazan cualquier archivo cuya **ruta web decodificada** supere 400 caracteres.
-Esa ruta no es la que ves en el Explorador: delante de cada carpeta y del nombre del archivo va la
-dirección de la biblioteca, por ejemplo `personal/ana_perez_contoso_com/Documents/` (41 caracteres).
-Las carpetas de clientes y proyectos con muchos niveles llegan al límite, el cliente de sincronización
-avisa de *"ruta demasiado larga"* y alguien tiene que ir renombrando a mano hasta que quepa.
+<sub>[English](README.md) · Parte de <a href="https://github.com/4leX-42/GADGETS-SUPPORT_CX">GADGETS-SUPPORT_CX</a></sub>
 
-PathShrink mide cada ruta como la mide el servicio, calcula el **mínimo de renombrados de carpeta**
-que la deja por debajo del límite, te enseña el plan y solo renombra cuando confirmas. Quita espacios
-antes que letras, no toca nombres de archivo salvo que lo permitas, comprueba el resultado en disco y
-guarda un fichero para deshacer.
+</div>
 
-## Qué hace
+## <img src="https://api.iconify.design/lucide/download.svg?color=%238b949e" width="18" align="top"> Instalar
 
-- **Mide la longitud en el servidor**, no la local: lee la URL de cada biblioteca del cliente de
-  OneDrive (OneDrive personal y bibliotecas de SharePoint sincronizadas).
-- **Primero sin pérdida**: quita espacios dobles y espacios alrededor de `-` `_` `,`; después junta
-  palabras (`Tax Returns` pasa a `TaxReturns`). Para en cuanto la ruta cabe.
-- **Letras solo si lo pides**: el recorte opcional quita letras del final de los nombres de carpeta más
-  largos, repartido entre niveles, nunca por debajo de una longitud mínima.
-- **Carpetas antes que archivos**; cambios mínimos; vista previa, confirmación, verificación y `undo.csv`.
-- **Ámbito seguro**: nunca renombra por encima de la carpeta elegida ni el primer nivel del OneDrive
-  personal (Escritorio, Documentos, Imágenes); salta accesos directos a otras bibliotecas, uniones y enlaces simbólicos.
-- **No descarga** los archivos que solo están en la nube.
-- **Otros bloqueos de sincronización** (modo Pro): nombres reservados, `_vti_`, `~$`, espacios al inicio o final.
-- **Reversión comprobada**: cada cambio de nombre se anota en `undo.csv` en el momento. Al revertir se
-  comprueba antes cada elemento y solo se restaura si sigue donde PathShrink lo dejó y su nombre antiguo
-  está libre; lo que se haya movido, renombrado otra vez, sustituido o borrado se salta y se indica, sin
-  sobrescribir nada.
-- Ventana con modo **Básico** y **Pro** en inglés, castellano y portugués (selector EN / ES / PT; por
-  defecto, el idioma de Windows): comparación antes y después, plan de ejecución completo, historial de
-  cambios aplicados con reversión, ayuda contextual, demostración interactiva con datos inventados y el
-  selector de carpetas de Windows. Informes HTML, CSV y JSON, y línea de comandos.
-- Windows PowerShell 5.1 y PowerShell 7. Sin administrador, sin módulos, sin internet.
-
-## Empezar
+PowerShell normal, con la cuenta dueña del OneDrive (sin elevar):
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force; [Net.ServicePointManager]::SecurityProtocol=3072; $f="$env:TEMP\install-pathshrink.ps1"; irm https://raw.githubusercontent.com/4leX-42/PathShrink/main/install.ps1 -OutFile $f; powershell -NoProfile -ExecutionPolicy Bypass -File $f
 ```
 
-**Sin el `.exe`**, si un antivirus o EDR detiene `PathShrink.exe`. No llega a descargarse: la ventana se abre
-directamente con Windows PowerShell.
+Por usuario, sin admin, con SHA-256 comprobado. `-NoExe` si un antivirus o EDR detiene `PathShrink.exe`; `-Uninstall` lo quita. Zips portables en [Releases](https://github.com/4leX-42/PathShrink/releases/latest).
 
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force; [Net.ServicePointManager]::SecurityProtocol=3072; $f="$env:TEMP\install-pathshrink.ps1"; irm https://raw.githubusercontent.com/4leX-42/PathShrink/main/install.ps1 -OutFile $f; powershell -NoProfile -ExecutionPolicy Bypass -File $f -NoExe
-```
+## <img src="https://api.iconify.design/lucide/folder-tree.svg?color=%238b949e" width="18" align="top"> Qué hace
 
-Instala para el usuario actual en `%LOCALAPPDATA%\Programs\PathShrink` con acceso en el menú Inicio,
-comprobando el SHA-256 del zip. Se quita con `install.ps1 -Uninstall`. También vale el zip portable de
-[Releases](https://github.com/4leX-42/PathShrink/releases/latest): descomprimir y abrir `PathShrink.cmd`.
+| | |
+|---|---|
+| <img src="https://api.iconify.design/lucide/ruler.svg?color=%238b949e" width="18" align="top"> **Longitud en servidor** | Cuenta la ruta web decodificada, con el prefijo de la biblioteca, como Microsoft |
+| <img src="https://api.iconify.design/lucide/sparkles.svg?color=%238b949e" width="18" align="top"> **Primero sin pérdida** | Espacios antes que letras; letras solo con recorte activado |
+| <img src="https://api.iconify.design/lucide/list-checks.svg?color=%238b949e" width="18" align="top"> **Plan mínimo** | Carpetas antes que archivos; solo los renombrados que arreglan una ruta |
+| <img src="https://api.iconify.design/lucide/shield-check.svg?color=%238b949e" width="18" align="top"> **Vista previa y verificación** | Nada cambia sin confirmar; el resultado se relee en disco |
+| <img src="https://api.iconify.design/lucide/undo-2.svg?color=%238b949e" width="18" align="top"> **Reversión comprobada** | `undo.csv` por ejecución; solo restaura lo que sigue donde quedó |
+| <img src="https://api.iconify.design/lucide/triangle-alert.svg?color=%238b949e" width="18" align="top"> **Otros bloqueos** | Nombres reservados, `~$`, `_vti_`, nombres de más de 255 (Pro) |
 
-Ejecútalo **con la cuenta del usuario dueño del OneDrive**, sin elevar con otra cuenta.
+No borra, no mueve, no descarga; no toca el registro ni el sistema; sin red. Solo escribe en `%LOCALAPPDATA%\PathShrink`.
 
-## Línea de comandos
+| Plan de ejecución | Cambios aplicados y reversión |
+|---|---|
+| ![Plan](docs/images/plan.es.png) | ![Historial](docs/images/history.es.png) |
+
+## <img src="https://api.iconify.design/lucide/terminal.svg?color=%238b949e" width="18" align="top"> Línea de comandos
 
 ```powershell
 Import-Module .\PathShrink\PathShrink.psd1
 Invoke-PathShrink -WhatIf                     # solo el plan
 Invoke-PathShrink -AllowTrim -MinNameLength 25
 Get-PathShrinkHistory                         # ejecuciones que renombraron algo
-Test-PathShrinkUndo -UndoFile "$env:LOCALAPPDATA\PathShrink\Reports\<ejecucion>\undo.csv"   # qué se puede revertir
-Undo-PathShrink -UndoFile "$env:LOCALAPPDATA\PathShrink\Reports\<ejecucion>\undo.csv"       # revierte lo seguro
+Undo-PathShrink -UndoFile "$env:LOCALAPPDATA\PathShrink\Reports\<ejecucion>\undo.csv"
 ```
 
-## Qué cambia y qué no
+<sub>Algoritmo, ajustes Pro, limitaciones y solución de problemas: [README en inglés](README.md).</sub>
 
-Renombra carpetas (y archivos solo con recorte) dentro de la carpeta elegida. Nunca cambia contenido,
-fechas, permisos ni uso compartido; no borra, no mueve, no descarga, no toca el registro ni la
-configuración del sistema. Lee `HKCU\Software\Microsoft\OneDrive\Accounts` y
-`HKCU\Software\SyncEngines\Providers\OneDrive`, y solo escribe en `%LOCALAPPDATA%\PathShrink`.
-Como cualquier renombrado, los accesos directos, anclajes y enlaces copiados que apunten dentro de una
-carpeta renombrada dejan de funcionar hasta que se revierte. Revertir devuelve nombres a partir del
-registro de esa ejecución; no puede restaurar lo que se renombró otra vez, se movió o se borró después,
-ni lo que tenga ocupado su nombre antiguo: eso se salta y se indica.
+<div align="center">
 
-Limitaciones, solución de problemas y detalle del algoritmo: en el [README en inglés](README.md).
+<sub>[MIT](LICENSE) · Sin relación con Microsoft</sub>
 
-## Licencia
-
-[MIT](LICENSE). Sin relación con Microsoft. OneDrive y SharePoint son marcas de Microsoft.
+</div>
